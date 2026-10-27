@@ -1,0 +1,1994 @@
+{
+ "version": "1.42.8",
+ "workflow": [
+  "Kaydı açmadan önce DAW › Denetim dökümünü oku: wp_get_post_meta key _daw_audit. fails listesindeki her satır [bölüm, madde adı, durum, sorun, madde no, kural] biçimindedir.",
+  "Yalnız kırmızı (no), eksik ve bakılacak (wait) satırlara dokun. Kuraldan geçen metin yeniden yazılmaz; düzeltme yalnız hatalı cümleye yapılır.",
+  "Kilitli kayıtta (_daw_audit.lock = true) metin alanlarına dokunma; yalnız değişebilen maddeler (16, 55, 56, 59, sayfa, schema, ödüller) takip edilir.",
+  "Her olgu kaynaktan gelir (S1.1, K24). Kaynak bulunamayan alan boş kalır ve _daw_yok meta nesnesine {\"alan_id\": \"sebep ve tarih\"} yazılır: panelde N/A olarak yeşil görünür.",
+  "Arama kalıpları Ubersuggest'ten okunur ve _daw_kw meta dizisine [{\"kw\": \"...\", \"vol\": n}] yazılır; yerleşimi panel kendisi ölçer (madde 46-49).",
+  "Kaynakla doğrulanmış istisna (ör. aynı gün iki bölüm) _daw_ok meta nesnesine {\"ep_dates_dup\": \"kaynak\"} olarak yazılır.",
+  "Bitince: wp_update_post ile kaydı bir kez kaydet (save hook), sonra daw_verified damgasını yaz. Her şey yeşilse kayıt kendiliğinden kilitlenir (madde 61).",
+  "Yeni kayıt açmadan önce K19 (kanibalizasyon) ve K23 (TMDB kaydı yoksa açılmaz) kapıları. Açılacak kişi ve yapımların listesi DAW › Kapsam sayfasındadır."
+ ],
+ "items": [
+  {
+   "no": "1",
+   "title": "Kanibalizasyon kapisi",
+   "rule": "Baslik, Korece ad ve olasi slug ile wp_search calistirildi; ayni yapim yok. Bir yapim = bir kayit; sezonlar ayni kayitta (K19)",
+   "group": "A. Kapilar: kayit acilmadan once (3)",
+   "check": "auto"
+  },
+  {
+   "no": "2",
+   "title": "TMDB kapisi",
+   "rule": "TMDB'de kaydi var ve id alindi. Yoksa kayit acilmaz (K23)",
+   "group": "A. Kapilar: kayit acilmadan once (3)",
+   "check": "auto"
+  },
+  {
+   "no": "3",
+   "title": "Tur dogru",
+   "rule": "dw_type drama / film / variety dogru; varyete drama isaretlenirse kisi sayfasinin sayaci sisiyor (K21)",
+   "group": "A. Kapilar: kayit acilmadan once (3)",
+   "check": "auto"
+  },
+  {
+   "no": "4",
+   "title": "daw_native_title",
+   "rule": "Korece orijinal ad",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "5",
+   "title": "daw_also_known_as",
+   "rule": "Alternatif ve uluslararasi adlar; yoksa YOK",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "agent"
+  },
+  {
+   "no": "6",
+   "title": "daw_tmdb_id",
+   "rule": "Madde 2'den gelen id",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto"
+  },
+  {
+   "no": "7",
+   "title": "dw_network",
+   "rule": "Gercek kanal/platform. \"N/A\" ve turevleri yer tutucudur, yazilmaz (K8)",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "8",
+   "title": "dw_country",
+   "rule": "Ulke terimi",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "9",
+   "title": "dw_genre",
+   "rule": "En az iki tur terimi",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "10",
+   "title": "daw_episodes",
+   "rule": "Kaynaktan okunan toplam bolum. Cok sezonluda tum sezonlarin toplami",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "11",
+   "title": "daw_duration_min",
+   "rule": "Nominal kusak degil, olculen bolum suresi (K4)",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "12",
+   "title": "daw_aired_start",
+   "rule": "Unix zaman damgasi, UTC gece yarisi",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "13",
+   "title": "daw_aired_end",
+   "rule": "Bitmis yapimda bos kalamaz. Platform yayininda = premiere; cok sezonluda son sezonun sonu (K13)",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto"
+  },
+  {
+   "no": "14",
+   "title": "daw_airing_days",
+   "rule": "Yayin gunu. Degistiyse \"Sunday, then Tuesday\"",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "15",
+   "title": "daw_content_rating",
+   "rule": "Yas siniri; yoksa YOK",
+   "group": "B. Kimlik ve kunye (12)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "16",
+   "title": "daw_status",
+   "rule": "completed / ongoing / upcoming. Bugunun tarihiyle karsilastirilir: daw_aired_end gecmisse completed, arada ise ongoing, ilerideyse upcoming. Bos birakilamaz: A Love Other Than Yours'ta bostu ve kunye satiri durumu hic yazmiyordu. Son bolum yayinlaninca durum kendiliginden completed olur ve daw_aired_end yazilir (madde 69)",
+   "group": "C. Kunye devami (5)",
+   "check": "auto"
+  },
+  {
+   "no": "17",
+   "title": "daw_director",
+   "rule": "Yonetmen",
+   "group": "C. Kunye devami (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "18",
+   "title": "daw_screenwriter",
+   "rule": "Senarist",
+   "group": "C. Kunye devami (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "19",
+   "title": "daw_production",
+   "rule": "Yapim sirketi. Dizi olarak yazilir, duz string degil (5a)",
+   "group": "C. Kunye devami (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "20",
+   "title": "daw_language",
+   "rule": "Orijinal dil",
+   "group": "C. Kunye devami (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "21",
+   "title": "daw_synopsis",
+   "rule": "En az 200 kelime, 3-4 paragraf; cok aranan yapimda (bir kalip ayda 5.000+) en az 350 kelime, 5-6 paragraf. Uzunluk dolguyla saglanmaz: her cumle kaynakli (K24), uydurma yok, baska bolumu tekrar etmez (K14), final spoiler'i verilmez. Logline yetmez. Karakterlerin isi, gecmisi, catismasi, mekan, ton. Son paragraf baglama otursun. Icerik aramaya gore kurulur: yazmadan once Ubersuggest kaliplari (K25) okunur; en cok aranan konular (karakterler, kaynak eser, mekan, ton) once ve genis anlatilir. Long-tail arama kaliplari buraya girer (K11). Sinopsise sigmayan ve ayda 1.000+ aranan ayri bir konu varsa ikinci bir H2 acilir (madde 63)",
+   "group": "D. Yazi (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "22",
+   "title": "daw_takeaways",
+   "rule": "4-6 madde, her biri tek bir olgu, sayisal ve tarihli",
+   "group": "D. Yazi (5)",
+   "check": "auto"
+  },
+  {
+   "no": "23",
+   "title": "daw_why_watched",
+   "rule": "Neden hala izleniyor; yoksa YOK",
+   "group": "D. Yazi (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "24",
+   "title": "daw_tags",
+   "rule": "Etiketler",
+   "group": "D. Yazi (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "25",
+   "title": "daw_adaptation",
+   "rule": "Webtoon/roman uyarlamasiysa kaynagi; degilse YOK",
+   "group": "D. Yazi (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "26",
+   "title": "daw_best_scenes",
+   "rule": "Yapisal: spoiler uyarisi + her sahne icin baslik, bolum no, ne oldugu. Uzlasilmis sahne yoksa YOK",
+   "group": "E. Derin bolumler (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "27",
+   "title": "daw_filming_location",
+   "rule": "Sadece dogrulanmis mekanlar. Tahmin yazilmaz",
+   "group": "E. Derin bolumler (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "28",
+   "title": "daw_visual_design",
+   "rule": "Yonetmen ya da goruntu yonetmeni beyani varsa",
+   "group": "E. Derin bolumler (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "29",
+   "title": "daw_themes_messages",
+   "rule": "Premise ve beyanlardan; dizinin bitmesi beklenmez",
+   "group": "E. Derin bolumler (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "30",
+   "title": "daw_interesting_facts",
+   "rule": "Basin toplantisi ve roportajlardan. Kaynaksiz fikra yayinlanmaz, ozellikle adi gecen gercek kisiler hakkinda",
+   "group": "E. Derin bolumler (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "31",
+   "title": "daw_real_life_loves",
+   "rule": "Dogrulanmamis iddia yayinlanmaz; neredeyse her zaman YOK",
+   "group": "E. Derin bolumler (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "32",
+   "title": "daw_cast_{main,supporting,guest}_person",
+   "rule": "Kaydi olan herkes bagli. Kaydi olmayanlar \"1/23\" olarak sayilir ve bu dosyaya yazilir",
+   "group": "F. Kadro (3)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "33",
+   "title": "daw_cast_*_role",
+   "rule": "Her kisinin karakter adi, kaynaktan okunan romanizasyonla",
+   "group": "F. Kadro (3)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "34",
+   "title": "daw_cast_*_eps",
+   "rule": "Basrol olmayan herkeste zorunlu. \"Appears in episode 12\" / \"Appears in episodes 3 and 7\" / \"Appears from episode 3\" / \"Season 1, episode 4 (11 May 2018)\" / \"Regular, seasons 1 and 2\" (K18)",
+   "group": "F. Kadro (3)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "35",
+   "title": "daw_ep_no + daw_ep_date",
+   "rule": "Hepsi, yayinlanmayanlar dahil. \"7 / 9\" gibi yarim liste bitmis yapimda kirmizidir; her listelenen bolumun tarihi dolu olmali",
+   "group": "G. Bolumler, sahneler, muzik (6)",
+   "check": "auto"
+  },
+  {
+   "no": "36",
+   "title": "daw_ep_title",
+   "rule": "Varsa; yoksa bos",
+   "group": "G. Bolumler, sahneler, muzik (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "37",
+   "title": "daw_ep_synopsis",
+   "rule": "Yayinlanan her bolume bir cumlelik ozgun ozet",
+   "group": "G. Bolumler, sahneler, muzik (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "38",
+   "title": "daw_ep_rating",
+   "rule": "Kaynakli izlenme orani; yoksa YOK",
+   "group": "G. Bolumler, sahneler, muzik (6)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "39",
+   "title": "daw_ost_album + daw_ost_track + daw_ost_artist",
+   "rule": "Atlanmaz. daw_ost_album bir Spotify albom URL'sidir, albom adi degil: tema onu oynaticiya gomer, metin yazilirsa oynatici bozulur. Albom yoksa alan bos birakilir, parca ve sanatci satirlari yine de doldurulur. Her OST parcasi ayri satir: \"Sarki adi, Part N\" + \"Sanatci, cikis tarihi\"",
+   "group": "G. Bolumler, sahneler, muzik (6)",
+   "check": "auto"
+  },
+  {
+   "no": "40",
+   "title": "daw_scene_title + daw_scene_ep + daw_scene_note",
+   "rule": "Madde 26'nin yapisal karsiligi",
+   "group": "G. Bolumler, sahneler, muzik (6)",
+   "check": "auto"
+  },
+  {
+   "no": "41",
+   "title": "daw_aw_* (5 sutun)",
+   "rule": "Yil, toren, kategori, kim, sonuc. Kazandi/aday ayrimi her satirda ayrica dogrulanir: en sik hata budur",
+   "group": "H. Oduller, medya, izleme (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "42",
+   "title": "daw_trailer_youtube",
+   "rule": "Yalniz resmi kanal: yayinci, platform, yapim ya da dagitici (bolgesel resmi kanallar dahil; kanalin Hakkinda metni ya da dagitici listesi teyit eder). Fan, derleme ya da yeniden yukleme kanali hicbir kosulda kullanilmaz (sahip, 24.09.2026). Resmi fragman yoksa ayni resmi kanalin kendi highlight ya da onizleme klibi kabul edilir; o da yoksa alan bos kalir ve _daw_yok'a N/A yazilir",
+   "group": "H. Oduller, medya, izleme (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "43",
+   "title": "daw_spotify_uri",
+   "rule": "OST albumu Spotify'da varsa",
+   "group": "H. Oduller, medya, izleme (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "44",
+   "title": "daw_gallery",
+   "rule": "Afis disi gorseller ayri bir telif karari; genelde YOK",
+   "group": "H. Oduller, medya, izleme (5)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "45",
+   "title": "daw_watch_platform + daw_watch_url + daw_watch_access",
+   "rule": "Platform, dogrulanmis baglanti, erisim sekli",
+   "group": "H. Oduller, medya, izleme (5)",
+   "check": "auto"
+  },
+  {
+   "no": "46",
+   "title": "Tohum tarama",
+   "rule": "keyword_suggestions baslik + kisi adi icin calistirildi; hacimli kaliplar listelendi ve kunye-denetim.md'ye hacimleriyle yazildi",
+   "group": "J. Anahtar kelime katmani: Ubersuggest (4)",
+   "check": "agent"
+  },
+  {
+   "no": "47",
+   "title": "Autocomplete fan-out",
+   "rule": "google_suggestions ile soru/edat/karsilastirma kaliplari cekildi; SSS sorulari gercek kaliplardan secildi, uydurulmadi",
+   "group": "J. Anahtar kelime katmani: Ubersuggest (4)",
+   "check": "agent"
+  },
+  {
+   "no": "48",
+   "title": "Yerlesim",
+   "rule": "En hacimli kalip SEO basliginda (K-b), ikincisi aciklamada (K-c), geri kalanlar sinopsis (21), SSS (K-d) ve H2'lerde. Ayni kalip iki yere yazilmaz: K-j hala gecerli",
+   "group": "J. Anahtar kelime katmani: Ubersuggest (4)",
+   "check": "auto"
+  },
+  {
+   "no": "49",
+   "title": "Hacim gercegi",
+   "rule": "Sifir hacimli kalip icin alan acilmaz. Dusuk hacimli baslikta (orn. Love Refresh 70/ay) kisi adi tasiyicidir: baslik etiketi oyuncunun adini tasimak zorunda",
+   "group": "J. Anahtar kelime katmani: Ubersuggest (4)",
+   "check": "auto"
+  },
+  {
+   "no": "50",
+   "title": "Klise avi",
+   "rule": "Su kaliplarin hicbiri hicbir alanda gecmez: \"delve\", \"tapestry\", \"testament to\", \"navigate the complexities\", \"it's important to note\", \"in today's fast-paced world\", \"whether you're X or Y\", \"look no further\", \"dive into\", \"unlock\", \"elevate\", \"seamless\", \"game-changer\", \"rich tapestry\", \"stands as\", \"serves as a reminder\", \"not only... but also\", \"more than just a\", \"leaves a lasting impression\", \"captivating\", \"must-watch\", \"resonates with audiences\". Bir cumle bu kaliplardan biriyle kuruluyorsa yeniden yazilir (27.10.2026: liste genişletildi ve madde 75-77 olarak ayrıldı; denetim satırları artık 75/76/77 numarasıyla gelir.)",
+   "group": "K. Insan eli: yapay zeka izi birakma (4)",
+   "check": "auto"
+  },
+  {
+   "no": "51",
+   "title": "Yapisal izler",
+   "rule": "Her paragraf ayni uzunlukta olmaz. Her bolum uc maddeyle bitmez. Em dash her cumlede olmaz. Her H2 ayni kalipla baslamaz. Uc maddelik ritim (\"X, Y ve Z\") ust uste iki cumlede gecmez. Sonuc paragrafi ozet cekmez: yeni bir olgu tasir ya da hic olmaz",
+   "group": "K. Insan eli: yapay zeka izi birakma (4)",
+   "check": "auto"
+  },
+  {
+   "no": "52",
+   "title": "Meta-yorum yok",
+   "rule": "Metin kendi hakkinda konusmaz: \"bu bolumde\", \"asagida gorecegimiz gibi\", \"ozetle\", \"sonuc olarak\", \"unutmayin ki\". Ayrica kod yorumu, TODO, \"[eklenecek]\", \"not:\" gibi uretim artiklari hicbir alanda kalmaz: alan bosalir ya da dolar, arasi yok",
+   "group": "K. Insan eli: yapay zeka izi birakma (4)",
+   "check": "auto"
+  },
+  {
+   "no": "53",
+   "title": "EEAT: deneyim ve kaynak",
+   "rule": "Her iddia ya bir kaynaga ya kaydin kendi verisine dayanir (K-m). Sayfa ne bildigini ve ne bilmedigini soyler: \"Nobody knows how many people watched it\" gibi bir cumle, uydurma bir rakamdan daha guvenilir bir sayfadir. Belirsizlik gizlenmez, yazilir",
+   "group": "K. Insan eli: yapay zeka izi birakma (4)",
+   "check": "agent"
+  },
+  {
+   "no": "54",
+   "title": "Hukuk ve guven",
+   "rule": "Sayfada TMDB cumlesi ve kaldirma talebi adresi var; korsan siteye baglanti yok; dogrulanmamis ozel hayat sozcugu yok; ortaklik baglantisi varsa aciklamasi var. Sabit cumleler kanitlanamayan iddia tasimaz (\"not stored here\", \"every image credits\" gibi cumleler 1.34.0'da kaldirildi)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "55",
+   "title": "Guncellik (K10)",
+   "rule": "Dogrulama damgasi var ve tekrar kontrol tarihi gecmemis; yayindaki yapim gunluk, digerleri haftalik yeniden bakilir",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "56",
+   "title": "Ulkeye gore izleme yerleri",
+   "rule": "TMDB API'den JustWatch verisi alindi (dogrulanmis TMDB eslesmesi sart), TMDB'nin verdigi butun ulkeler, platform logosu TMDB gorsel sunucusundan (sitede tutulmaz). Her satir platformun kendisine gider, TMDB'ye degil. Sira: (1) kayda elle yazilmis resmi baglanti (daw_watch_url); (2) Wikidata'daki platform kimliginden yapimin kendi sayfasi (Netflix P1874, Prime Video P14440/P8055, Disney+ P7596/P7595, Apple TV P9751/P9586, Hulu P6467/P6466, Max P8298, Viki P10344, TVING P11960, Crunchyroll P11330, Peacock P11815, Paramount+ P13147, Tubi P7761/P7760; _daw_watch_ids, liste ile birlikte yenilenir); (3) adresi elle acilip dogrulanmis platform aramasi, yapim adiyla (Kocowa, Viki, iQIYI, WeTV, OnDemandKorea, Prime Video, Netflix, Crunchyroll, Tubi, YouTube, Google Play); (4) ancak hicbiri yoksa TMDB'nin ulke sayfasi. Wikidata'da kimligi olmayan buyuk platformda (Kocowa, Viki gibi) yapimin sayfasi bulunursa daw_watch_url'e yazilir. Ayni platform elle yazilmis satirda ve ulke listesinde iki kez gosterilmez. Ilk 6 satir gorunur, gerisi \"Show all\" ardinda. Liste haftada bir, yayindaki yapimda her gun yenilenir; lisansi biten platform bir sonraki yenilemede kendiliginden duser. JustWatch atfi site altbilgisinde (TMDB sarti); sayfada kaynak cumlesi yok. TMDB hic ulke listelemiyorsa YOK",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "57",
+   "title": "daw_remakes",
+   "rule": "Yeniden cekim ve baska versiyonlar; yoksa YOK",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "58",
+   "title": "daw_link_imdb + daw_link_wikipedia",
+   "rule": "Yapimin IMDb ve Ingilizce Wikipedia sayfasi; okura baglanmaz, yalniz schema sameAs. Yoksa YOK",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "59",
+   "title": "Kapsam (TMDB ile karsilastirma)",
+   "rule": "Dizi/film: TMDB kadrosunda kaydi olup kadroya baglanmamis kisi yok; ilk 15 icinde kaydi olmayanlar Kapsam sayfasinda. Kisi: kaydi olan yapimlarinin hepsinde kadroda; kaydi olmayan dizi/film/anime listelenir; yeni/yakinda isler takip edilir",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "60",
+   "title": "Ekip daw_original_author, daw_studio, daw_producer",
+   "rule": "Yonetmen ve senarist (17, 18) disinda yalniz aranan uc ekip rolu: uyarlamada orijinal eserin yazari, animede studyo, varyetede PD. Goruntu yonetmeni, kurgu vb. eklenmez. TMDB ekip listesiyle tutarli, kaynakli",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "61",
+   "title": "Kilit",
+   "rule": "Her sey yesil ve damga varken icerik parmak izi alinir. Kilitli kayitta kuraldan gecen metin yeniden yazilmaz; yalniz degisebilen maddeler (16, 55, 56, 59, sayfa, schema, oduller) takip edilir. Icerik degisirse kilit bozulur ve degisen alanlar yeniden denetlenir (briefs/kilit-kurali.md)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "62",
+   "title": "Kaynak dogrulamasi (TMDB + Wikidata)",
+   "rule": "Sabit olgular (tarihler, bolum sayisi, yerel ad, IMDb, Wikipedia, yonetmen, senarist, yapim sirketi; kiside dogum/olum tarihi, cinsiyet, yerel ad) iki kaynak ayni seyi soylerse bos alana kendiliginden yazilir. Kayittaki deger iki kaynakla celisirse kirmizi; kaynaklar ayrisirsa ya da tek kaynak varsa ajan ucuncu kaynakla karar verir (K5). Yalniz TMDB'den gelmis eski degerler teyit edilir",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "63",
+   "title": "daw_title_section_title + daw_title_section_body Ek H2 bolumu (istege bagli)",
+   "rule": "Sinopsisin disinda, ayda 1.000+ aranan ayri bir konu varsa (\"X ending explained\", \"X based on webtoon\", \"X filming locations\" gibi) kendi H2'siyle acilir. Baslik _daw_kw icindeki o kalibi tasir (K11), govde en az 120 kelime, her cumle kaynakli, sayfanin baska bolumunu tekrar etmez (K14). Aranan kalip yoksa acilmaz; bos olmasi eksik degildir (UYGULANMAZ)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "64",
+   "title": "Ozgunluk",
+   "rule": "Sitedeki her cumle sitenin kendisidir: iki kayit ayni cumleyi tasimaz, hicbir cumle kaynaktan kopyalanmaz. Kaynak olguyu verir, cumle burada, arama kaliplarini (long-tail) tasiyacak sekilde yeniden yazilir; bolum ozetleri dahil. Denetim 8+ kelimelik her cumleyi site capinda karsilastirir; baska kayitta da gecen cumle kirmizidir. Disaridan kopya makineyle olculemez: yazarken kaynak cumlesi ham madde olarak kullanilir, yapi ve kelimeler degistirilir (K9)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "65",
+   "title": "_daw_tmdb_season Sezon bagi",
+   "rule": "Her sezon kendi sayfasidir (MyDramaList modeli, sahip 24.09.2026); seri kaydi 1. sezonu temsil eder. Sezon sayfasi TMDB'de serinin kimligine ve sezon numarasina baglanir (daw_tmdb_id = seri, _daw_tmdb_season = N, _daw_season_parent = seri kaydi). Afis, tarihler, bolum sayisi ve kadro o sezondan gelir, dizinin toplamindan degil; gorsel sunucuda tutulmaz. Bag basliktan kendiliginden kurulur (\"X Season N\" + sitede \"X\" adli dogrulanmis seri kaydi + TMDB'de N. sezon). Seri kaydi yoksa ya da TMDB sezonu ayri dizi tutuyorsa satir kirmizi yanar, elle bakilir. Yeni sezon icin kayit acilmadan once K19 aramasi yapilir; butun sayfalar basligin altinda birbirine baglanir",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "66",
+   "title": "N/A kaniti",
+   "rule": "N/A bir bulgudur ve nereye bakildigini gosterir (sahip 24.09.2026: \"10-20 yer gezdim, resmi sayfalara bile girdim, bulamadim\" denebiliyorsa N/A). _daw_yok sebebi su bicimde yazilir: <sebep>. Bakilan (N): adres; adres (resmi); ... | gg.aa.yyyy. En az 10 farkli yer, en az 2 resmi sayfa (yayinci, platform, yapimci, ajans, yayinevi, KMRB/KOFIC gibi kurul; listede olmayan resmi site \"(resmi)\" diye isaretlenir) ve tarih. Dogrulama damgasi bos alani N/A yapmaz. Sebep kaynagin okunmadigini soyluyorsa (\"not fetched\", \"this session\", \"snippets not returned\", \"okunamadi\") zayif N/A'dir. Ikisi de EKSIK sayilir ve kilidi bozar. Uygulanmaz: yalniz su alanlarda, iki yer ve tarihle: daw_link_imdb, daw_link_wikipedia (sezonun kendi sayfasi yok), daw_original_author, daw_adaptation (ozgun senaryo). Bolum alanlarinda TMDB'de (Ingilizce ya da Korece) ozet/ad/tarih varsa N/A hic kabul edilmez",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "K-a",
+   "title": "Afis TMDB'den",
+   "rule": "wp_set_featured_image + image.tmdb.org/t/p/original/<path>, alt metniyle. Afissiz kart bas harf cizer",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-b",
+   "title": "SEO basligi",
+   "rule": "60 karakter alti, aranan kalip iceriyor, site adi yok",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-c",
+   "title": "SEO aciklamasi",
+   "rule": "150-160 karakter",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-d",
+   "title": "SSS",
+   "rule": "daw_faq_q ve daw_faq_a ayni uzunlukta; arama kaliplarinin kaci cevaplaniyor",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-e",
+   "title": "Govde",
+   "rule": "Elementor artigi ise (1521 bayt = Alhambra) okunur, yedegi alinir, yorum satiriyla degistirilir (K17)",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-f",
+   "title": "Save hook",
+   "rule": "wp_update_post ile govde bir kez guncellenir, yoksa ters indeks yenilenmez",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto+agent"
+  },
+  {
+   "no": "K-g",
+   "title": "Canli olcum",
+   "rule": "?cb= ile cache kirilarak acilir; kelime, H2 sayisi, kadro karti, N/A sayisi olculur (K2)",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-h",
+   "title": "Yer tutucu taramasi",
+   "rule": "\"N/A\", \"To be confirmed\", \"[Information not available]\", tire: sifir olmali",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-i",
+   "title": "Celiski taramasi",
+   "rule": "Kunye satiri, sinopsis, SSS ve zaman cizelgesi ayni soruya ayni cevabi veriyor mu (K16)",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "agent"
+  },
+  {
+   "no": "K-j",
+   "title": "Tekrar taramasi",
+   "rule": "Ayni olgu iki bolumde bastan anlatiliyor mu; atif serbest, tekrar degil (K14)",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-k",
+   "title": "Yabanci veri",
+   "rule": "Baska bir yapimin ya da kisinin metni var mi (K15)",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-l",
+   "title": "Schema",
+   "rule": "Tek blok; TVSeries ya da Movie dogru; FAQPage soru sayisi tutuyor; parse hatasi yok",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "auto"
+  },
+  {
+   "no": "K-m",
+   "title": "Kendi metnimi dogrula",
+   "rule": "Her cumledeki her olgu icin kaynak ya da kayit ici teyit. Ajan verisi dogru olsa bile metne cevrilirken hata girer (K24)",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "agent"
+  },
+  {
+   "no": "K-p",
+   "title": "AI izi taramasi",
+   "rule": "Madde 50-52 listesi bitmis metinde kelime kelime aranir; bulunan her kalip yeniden yazilir, ustu ortulmez",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "agent"
+  },
+  {
+   "no": "K-o",
+   "title": "Ubersuggest son testi",
+   "rule": "Kayit bitince madde 46-49 tekrar calistirilir: hedef kalip baslikta mi, aciklamada mi, SSS'te mi; sifir hacimli kalip kalmis mi",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "agent"
+  },
+  {
+   "no": "K-n",
+   "title": "Bu dosyaya yaz",
+   "rule": "Once/sonra kelime ve H2, ne eklendi, kadro kac/kac, ne YOK kaldi ve neden",
+   "group": "I. Kapanis kontrolleri: her kayitta, yazdiktan sonra",
+   "check": "agent"
+  },
+  {
+   "no": "67",
+   "title": "H2 basligi yalniz hacimliyse acilir",
+   "rule": "Bir alt bolum (H2) kisinin kendi adini degil, arandigi kalibi tasir (K11) -- ama o kalibin gercek arama hacmi yoksa (kontrol edilmemis ya da sifir hacimli) o H2 icat edilmez (49). Henuz boyle bolumlere ayrilmamis ya da hacimli bir kalibi olmayan biyografi tek bir 'Biography' H2'sinde kalir (1.47.10, single-person.php fallback). Birden fazla hacimli kalip gercekten varsa (orn. Seo Kang Joon'da 'About those eyes') onlar kendi H2'siyle yazilir, ama sayfada hala tek bir 'Biography' kalibi de aranir -- o yuzden boyle kayitlarda hepsinin ustune, K-g'nin 'kiside Biography H2 sart' kuralini karsilayan ayri bir 'Biography' anchor'i/basligi eklenir. Tek H2 ile cok H2 arasindaki secim hacme gore yapilir, keyfi degil.",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "68",
+   "title": "daw_bio_intro Biyografi giris paragrafi (istege bagli)",
+   "rule": "Birden fazla hacimli H2'ye bolunmus bir kayitta ('Biography' sarma basligi varsa, bkz. 67), o basligin hemen altina, alt bolumlerden once, kisa bir giris paragrafi yazilabilir. Zorunlu degil: bos ise hic basilmaz. Yazilirsa: daw_person_summary'deki (kahraman altindaki tek cumlelik ozet) ya da herhangi bir alt bolumun kendi metninin tekrari olmaz (K14); yalniz alt bolumlerin nasil bir araya geldigini kurar (ornek: 'Otuz yila yakin roportaj ve haber, esas olarak dort konuda toplaniyor -- gozlerinin rengi, 5urprise yillari, Are You Human? ikili rolu ve askerlik donususu'). Her cumle kaynakli (K24), klise yok (50-53), kaydin baska hicbir yerinde gecmeyen ozgun cumle (K9/64)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "69",
+   "title": "Yayin durumu kendiliginden ve aninda doner",
+   "rule": "Upcoming / On air / Completed elle tutulmaz, tarihlerden hesaplanir ve tarih geldigi an doner. Ilk bolum gunu Upcoming -> On air; son bolum gunu boyunca On air kalir (finale aksam yayinlanir), ertesi gun (UTC gece yarisi, Kore saatiyle 09:00) Completed olur. daw_aired_end girilmemisse son bolumun tarihi bolum listesinden okunur: daw_episodes kadar tarihli bolum varsa (kaydin kendi listesi ya da TMDB bolum listesi) en son tarih finaldir ve sistem saatlik taramada daw_aired_end'e yazar, daw_status ongoing ise completed yapar. Yarim liste finali belirlemez, dizi erken bitirilmez. Onbellek eski rozeti tutamaz: yayindaki ve yakinda baslayacak kayitlarin sayfa onbellegi bir sonraki donus anina kadar tutulur, yayin takvimi ve ana sayfa her UTC gunu donunce yenilenir. Ajan: bitmis bir dizide On air goren durumu elle duzeltmekle kalmaz, neden kendiliginden donmedigini bulur (bolum sayisi eksik, tarih eksik, yanlis tarih). Ders: Four Hands, Two Sonatas 4 Ekim 2026'da bitti, 5 Ekim'de takvimde hala On air diyordu; bitis tarihi girilmemisti, bolum listesi tamdi (owner, 5 Ekim 2026)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "70",
+   "title": "Hiz ve kayma: her sayfa tek seferde, kaymadan acilir",
+   "rule": "Her yeni sablon, bolum ya da script bu kurallara uyar, uymayan surum cikmaz. (1) Kayma yok: sonradan dolan her kutu (reklam, poster, rozet, sayac, ulke listesi) ilk cizimden kendi yuksekligini ayirir; script ekranda gorunen bir seyin boyunu degistirmez. Telefonda script ile sekil degistiren bir parca (filtre paneli gibi) ilk cizimde son halini html.daw-js bayragiyla CSS'ten alir. (2) Zorunlu yerlesim yok: sayfa yuklenirken script scrollY, innerHeight, offsetHeight, getBoundingClientRect, getComputedStyle okumaz; gorunurluk IntersectionObserver ile, ilk kontrol load sonrasi yapilir. (3) Font: iki aile de font-display optional. Ilk ziyarette font sayfaya uygulanmaz, yuklemeden sonra onbellege alinir; sonraki sayfalarda head icinde acilir. Fontun sonradan gelip sayfayi yeniden dizmesine izin verilmez. (4) Ekran disindaki bolumler (ilk bolumden sonrakiler, alt bilgi, telefonda yan sutun) content-visibility auto ile ekrana yaklasinca cizilir. (5) Bos reklam kutusu (AdSense unfilled) ekranin altindaysa kaldirilir, ekrandaysa dokunulmaz. (6) Olcum: her surumden sonra ve her gun 11 sayfa tipi hem mobil hem masaustu olculur; hedef her ikisinde 90+, kayma 0,1 alti. Altina dusen sayfa kontrol merkezinde yapilacaklara duser; ajan tahminle degil olcumle (PSI ayrintisi, /daw/v1/page ile gercek Chrome'da) sebebi bulur. (7) Guncellemeden sonra sayfa onbellegi isitilir; eski surumle kalmis kopya (daw-build etiketi tutmayan) bulunup yenilenir. Ders: 6 Ekim 2026 olcumleri, dizi sayfasi kayma 0,105, bolum sayfasi 0,233, film sayfasi 1 saniyeyi asan zorunlu yerlesim (owner, 6 Ekim 2026)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)"
+  },
+  {
+   "no": "71",
+   "title": "Baslik icerigi soyler: yayindaki dizi upcoming degildir",
+   "rule": "Bir bolumun basligi ve sayfa ici menudeki etiketi icindeki kayitlarin durumuna gore yazilir. Kisi sayfasindaki kutuda yalniz yayindakiler varsa 'dramas and movies on air now', yayinda ve yakinda olanlar birlikteyse 'on air now and coming up', yalniz gelecek projeler varsa 'upcoming'. Upcoming yalniz onaylanmis projeler icin kullanilir (madde 16). Gelecek projenin satiri 'Confirmed, premieres <gun ay yil>' der; tarih aciklanmadiysa 'Confirmed, premiere date not announced yet'. 'Only confirmed projects are listed' notu yalniz kutuda gelecek proje varsa ya da hic proje yoksa yazilir; kutuda yalniz yayindaki dizi varsa bu not anlamsizdir ve cikmaz, yerine haber baglantisi 'Latest news:' ile verilir. Durum degisince (madde 69) baslik da kendiliginden degisir. Ders: Seo Kang Joon sayfasinda A Love Other Than Yours yayindayken baslik 'upcoming' diyordu (owner, 6 Ekim 2026)",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)"
+  },
+  {
+   "no": "72",
+   "title": "TMDB eş kimliği ve kapsam istisnası",
+   "rule": "TMDB eş kimliği: Aynı yapım TMDB'de iki kimlikle geçiyorsa (antoloji çatısı + tek iş, ya da tv/film çifti) ayrı kayıt açılmaz (K19). Eş kimlik kaynakla doğrulanıp yapım kaydının daw_tmdb_alt alanına yazılır. Eşi olmayan bilinçli istisna _daw_ok'a 'coverage:<tip>:<id>' anahtarıyla yazılır (örn. 'coverage:tv:83893'; değer kısa bir gerekçe notudur, panelde gösterilir).",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)"
+  },
+  {
+   "no": "73",
+   "title": "Search Console aramaları sayfada karşılanır",
+   "rule": "Search Console'un son 28 günde bu sayfaya getirdiği her arama panelde dört durumdan birine girer. (1) Karşılanıyor: kelimeleri SEO başlığında, açıklamada, bir başlıkta, SSS'te ya da sayfa metninde geçiyor (yazım farkı sayılmaz: Seo Kang Jun = Seo Kang Joon, colour = color). (2) Yazım varyantı: arama yalnız kaydın kendi adı, başka yazımla ya da 1-2 harf hatasıyla (seo kangjoon, seo kang joo); Google bunları zaten sayfaya eşler, hatalı yazım sayfaya yazılmaz (anahtar kelime doldurma sayılır). Gerçek romanizasyon farkları (Seo Kang Jun) kişi SSS'inde ya da daw_also_known_as'ta bir kez geçer. (3) Bilinçli dışarıda: sayfaya ait olmayan arama _daw_ok'a 'gsc:<arama>' anahtarıyla gerekçesiyle yazılır. Gerekçe türleri: başka kişi, başka yapım, doğrulanmamış özel hayat iddiası (madde 31), kaynağı bulunamayan bilgi (_daw_yok'taki alan). (4) İşlenecek: sayfanın o soruyu en doğal cevaplayan yerine (çoğu zaman SSS ya da ilgili bölüm) tek bir kez, doğru ve kaynaklı bir cümleyle yazılır (K14, K24); bunun için ayrı H2 açılmaz (49, 67). İşlenecek arama varken kayıt Tam bitti olamaz. Her Search Console eşitlemesinden sonra arama listesi değişen kayıt bir saat içinde yeniden denetlenir; sayfada karşılığı olmayan yeni arama 'Bakılacak' satırı açar ve panelde 'yeni' etiketiyle görünür. Kontrol edilip işlenince ya da gerekçesiyle dışarıda bırakılınca kayıt kendiliğinden Tam bitti'ye döner.",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto+agent"
+  },
+  {
+   "no": "74",
+   "title": "Tam bitti ve Temel bitti",
+   "rule": "Tam bitti: kaydın denetiminde hiçbir açık satır yok (kırmızı, bakılmamış ya da bekleyen). Temel bitti: kırmızı ve bakılmamış yok, yalnız bekleyen satır var (kaydı olmayan yapım/kişi, yeni/yakında iş, karşılanmamış arama, damga/kilit yenilemesi). Düzey ham TMDB sayılarından değil, kaydın kendi denetiminden okunur. Haftalık kapsam taraması, eş kimlik (daw_tmdb_alt) değişikliği ya da içerik düzenlemesi denetimi kendiliğinden yeniler; yeni bir film ya da kişi açık satır doğurursa kayıt Tam bitti'den Temel bitti'ye iner, kapanınca geri çıkar.",
+   "group": "L. Panelle eklenen maddeler (2026-09-24, numaralar sabit)",
+   "check": "auto"
+  },
+  {
+   "no": "75",
+   "title": "Klişe kelimeler",
+   "rule": "Eleştiri klişeleri hiçbir alanda geçmez: rollercoaster, breathtaking, must-see, must-watch, edge of their seats, heart-wrenching, tugs at the heartstrings, something for everyone, unforgettable, masterful, binge-worthy, a true gem, a perfect blend of ve benzerleri (tam liste inc/voice.php daw_voice_cliches). Tırnak içindeki eleştirmen/kişi sözü sayılmaz. Bulunan cümle olguya dayanan sade bir cümleyle yeniden yazılır.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  },
+  {
+   "no": "76",
+   "title": "AI kelimeleri",
+   "rule": "Dil modellerinin sevdiği kelimeler geçmez: delve, tapestry, testament, showcase(s), pivotal, nuanced, seamless, vibrant, boasts, nestled, cemented, solidified, captivating, resonates, multifaceted, underscores, intricate, realm, embark, navigate, foster, elevate, meticulous, profound, enigmatic, landscape of (tam liste daw_voice_ai_vocab). Yerine düz kelime: shows, key, clear, lively, has, sits, made, held.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  },
+  {
+   "no": "77",
+   "title": "AI kalıpları",
+   "rule": "Yapay zekâ cümle kalıpları kurulmaz: not only ... but also; whether you're ...; it isn't just X, it's Y; more than just a drama; cümle başında Moreover, Furthermore, Additionally, Overall, Ultimately, In short, In conclusion; It's no wonder / The result? / Here's the thing; soru ile açılış; From X to Y, this ...; love, loss and hope gibi üçlü soyut listeler.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  },
+  {
+   "no": "78",
+   "title": "Şablon cümleler",
+   "rule": "Bir cümle kalıbı (başlık ve sayılar çıkarılınca ilk 6 kelime) 6 ya da daha fazla kayıtta geçiyorsa şablondur; o kayıtta kendi cümlemizle yeniden kurulur. Dizin her gün yeniden kurulur (daw_voice_tpl). Ayrıca sabit şablonlar yasak: everything you need to know, in this guide, read on to, if you enjoyed, is a must for fans of, is sure to. Madde 64 (aynı cümle başka kayıtta) ile birlikte çalışır.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  },
+  {
+   "no": "79",
+   "title": "Ansiklopedik dil",
+   "rule": "Sayfa Wikipedia gibi açılmaz ve onun dilini taşımaz: kaynakça işareti [3], (Korean: ...; RR: ...) parantezi, 'is a 2024 South Korean television series' giriş cümlesi, 'known professionally as', 'best known for her roles in', 'The series stars', 'It aired on X from ... to ...', 'according to Nielsen/Wikipedia', 'reportedly'. Bilgi aynı kalır, cümle sitenin sesiyle kurulur: önce okura neden önemli olduğu, sonra olgu.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  },
+  {
+   "no": "80",
+   "title": "AI izi / filigran",
+   "rule": "Görünmez karakter (zero-width, yön işareti, yumuşak tire, Unicode etiket, varyasyon seçici, dar boşluk), sohbet artığı (As an AI, I hope this helps, Certainly!), AI aracı izi (oaicite, contentReference, utm_source=chatgpt) ve markdown artığı (**kalın**, ## başlık) hiçbir alanda kalmaz. daw/v1/meta yazımı görünmez karakterleri kendiliğinden siler; kalanlar elle temizlenir.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  },
+  {
+   "no": "81",
+   "title": "Site sesi (DAW dili)",
+   "rule": "Her uzun alan (özet, biyografi, why watched, takeaways, bölüm gövdeleri, temalar) DAW sesiyle yazılır ve ölçülür: cümle uzunluğu değişkenliği en az 0.28 (8+ cümlede), ortalama cümle en çok 30 kelime, üç cümle üst üste aynı kelimeyle başlamaz, üç paragraf aynı kelimeyle açılmaz, ve kayıtta editör görüşü bulunur (kime uyar, nereden başlanır, neyi güçlü/zayıf, tempo). Sesin tanımı site kurallarında S-SES.",
+   "group": "M. Site dili ve özgünlük (7, 27.10.2026)",
+   "check": "auto"
+  }
+ ],
+ "checks": {
+  "seo": [
+   {
+    "no": "K-b",
+    "title": "SEO başlığı",
+    "rule": "60 karakter altı; en hacimli kalıp içinde; site adı yok (tema ekliyor); yarım kalmamış. \"Where to Watch\" yalnız sayfada izleme bilgisi varsa."
+   },
+   {
+    "no": "K-c",
+    "title": "Meta açıklama",
+    "rule": "150–160 karakter; ikinci hacimli kalıp içinde; elle yazılmış."
+   },
+   {
+    "no": "48",
+    "title": "Odak kelime",
+    "rule": "En hacimli kalıp; başka kayıtta aynısı yok (K19)."
+   },
+   {
+    "no": "46",
+    "title": "Tohum tarama",
+    "rule": "Ubersuggest keyword_suggestions (ABD) başlık + kişi adıyla; kalıplar hacimleriyle _daw_kw'ye yazılır."
+   },
+   {
+    "no": "47",
+    "title": "Otomatik tamamlama",
+    "rule": "google_suggestions ile soru/edat/karşılaştırma kalıpları; SSS soruları bunlardan seçilir."
+   },
+   {
+    "no": "48",
+    "title": "Yerleşim",
+    "rule": "En hacimli başlıkta, ikincisi açıklamada, gerisi sinopsis, SSS ve H2'lerde. Aynı kalıp iki yere yazılmaz. Panel her kalıbın nerede durduğunu gösterir."
+   },
+   {
+    "no": "49",
+    "title": "Hacim gerçeği",
+    "rule": "Sıfır hacimli kalıba alan açılmaz; düşük hacimli başlıkta kişi adı taşıyıcıdır."
+   },
+   {
+    "no": "K11",
+    "title": "Başlıkta kalıp",
+    "rule": "Aranan kalıp bir bölüme denk geliyorsa o bölümün H2'si o kelimeyle yazılır; en büyük 3 kalıp başlıklarda aranır."
+   },
+   {
+    "no": "K-g",
+    "title": "H1 / H2 / H3",
+    "rule": "Tek H1 ve kaydın adını taşıyor; başlık sırası atlamıyor; kişide Biography H2 şart; sayfada tek <main>."
+   },
+   {
+    "no": "5.5",
+    "title": "İlk paragraf",
+    "rule": "40–60 kelime, doğrudan cevap."
+   },
+   {
+    "no": "K-g",
+    "title": "Canonical, robots",
+    "rule": "Canonical kaydın kendi adresi; canlıda noindex yok (staging'de noindex doğru)."
+   },
+   {
+    "no": "K-g",
+    "title": "Sosyal paylaşım",
+    "rule": "og:title, og:description, og:image (TMDB API'den, 780 px), twitter:card summary_large_image."
+   },
+   {
+    "no": "1",
+    "title": "Kanibalizasyon",
+    "rule": "Aynı odak kelime, aynı SEO başlığı ya da aynı yerel ad başka kayıtta yok (K19)."
+   },
+   {
+    "no": "K-h",
+    "title": "Yer tutucu",
+    "rule": "\"N/A\", \"To be confirmed\", \"[REDACTED]\", tire yer tutucusu sayfada sıfır."
+   },
+   {
+    "no": "6.1",
+    "title": "URL",
+    "rule": "Değişmez; yeni kök yol açılmaz."
+   }
+  ],
+  "schema": [
+   {
+    "no": "K-l",
+    "title": "Tek blok",
+    "rule": "Tek JSON-LD @graph: Organization, WebSite, BreadcrumbList, ana düğüm, varsa FAQPage. Rank Math'in kendi schema'sı basılmaz. Ayrıştırma hatası yok."
+   },
+   {
+    "no": "3",
+    "title": "Tür doğru",
+    "rule": "Dizi, varyete ve anime TVSeries; film Movie; kişi Person; grup MusicGroup; haber NewsArticle; rehber Article. TMDB kayıt tipiyle karşılaştırılır (K21)."
+   },
+   {
+    "no": "K-l",
+    "title": "TVSeries alanları",
+    "rule": "name, alternateName (yerel ad + AKA), description, image (ImageObject, TMDB), genre, inLanguage, contentRating, startDate, endDate, numberOfEpisodes, timeRequired, productionCompany (yapım şirketi), actor (PerformanceRole ile karakter adı), director, author, countryOfOrigin, trailer, containsSeason > episode (numara, ad, tarih, özet), potentialAction WatchAction, award (yalnız kazanılan), sameAs (TMDB, IMDb, Wikipedia)."
+   },
+   {
+    "no": "K-l",
+    "title": "Movie alanları",
+    "rule": "Aynı çekirdek + datePublished, duration."
+   },
+   {
+    "no": "K-l",
+    "title": "Person alanları",
+    "rule": "name, alternateName, image, birthDate, deathDate, birthPlace, jobTitle, height, nationality, gender, affiliation (ajans), alumniOf, sameAs, award, performerIn. publisher yazılmaz (6.5)."
+   },
+   {
+    "no": "K-l",
+    "title": "MusicGroup alanları",
+    "rule": "name, alternateName, image, description, foundingDate, foundingLocation, member, sameAs."
+   },
+   {
+    "no": "K-l",
+    "title": "NewsArticle / Article",
+    "rule": "headline, image, datePublished, dateModified, author, publisher (site), about (bahsedilen kayıtlar), citation (kaynaklar), speakable."
+   },
+   {
+    "no": "K-d",
+    "title": "FAQPage",
+    "rule": "Soru sayısı sayfadaki SSS ile aynı."
+   },
+   {
+    "no": "60",
+    "title": "Ekip",
+    "rule": "director ve author kişi kaydı varsa url ile; varyetede producer; uyarlamada isBasedOn (Book / ComicSeries) ve yazarı; animede stüdyo productionCompany; anime filmi Movie."
+   },
+   {
+    "no": "6.5",
+    "title": "aggregateRating",
+    "rule": "Yalnız görünen gerçek okur puanıyla ve oy eşiği aşıldıysa; tek oyla gönderilmez."
+   },
+   {
+    "no": "6.5",
+    "title": "publisher",
+    "rule": "Dizi, film, kişi ve grup düğümünde yok: yapımı biz yayınlamadık (1.36.0 ile kaldırıldı)."
+   },
+   {
+    "no": "42",
+    "title": "trailer uploadDate",
+    "rule": "YouTube'daki gerçek yükleme tarihi (daw_trailer_date); yoksa hiç gönderilmez (1.36.0 öncesi yazının tarihi gidiyordu)."
+   }
+  ],
+  "image": [
+   {
+    "no": "K-a",
+    "title": "Kaynak",
+    "rule": "Dizi, film, varyete, anime, kişi, grup: yalnız TMDB API (image.tmdb.org), bizde barındırılmaz. Haber ve rehber: Commons ya da kendi yüklemen (\"own\")."
+   },
+   {
+    "no": "K-a",
+    "title": "Eşleşme",
+    "rule": "Resim yalnız TMDB kaydı doğrulandıysa gösterilir: yıl ±1 ve yerel ad (dizi), doğum tarihi ±1 gün (kişi). Doğrulanamayan kayıtta boş kutu değil baş harfli monogram çizilir."
+   },
+   {
+    "no": "K-a",
+    "title": "Yedek",
+    "rule": "Her resmin gizli yedeği sunucuda tutulur; TMDB erişimi kesilirse tek ayarla yedekten sunulur. Medya kütüphanesinde görünmez."
+   },
+   {
+    "no": "K-a",
+    "title": "Alt metin",
+    "rule": "Dizi: \"Pinocchio (2014) K-Drama poster\"; Japon dizisi \"Japanese drama\"; film \"Korean movie\"; ülke boşsa \"drama\". Kişi: \"Lee Jong Suk (이종석), Korean actor\"; kadında \"actress\", şarkıcıda \"singer\". Başlıkta yıl varsa ikinci kez eklenmez."
+   },
+   {
+    "no": "7.2",
+    "title": "Boyut",
+    "rule": "Her img width/height taşır (CLS sıfır); srcset ile boyutlar."
+   },
+   {
+    "no": "K-a",
+    "title": "Atıf",
+    "rule": "Altbilgide TMDB cümlesi ve kaldırma adresi; sayfa altında \"shown through the TMDB API\". Ülke izleme listesinde JustWatch atfı."
+   },
+   {
+    "no": "K-a",
+    "title": "Sosyal görsel",
+    "rule": "og:image ve twitter:image TMDB'den; schema image ImageObject (500×750 poster, 421×632 portre)."
+   },
+   {
+    "no": "K-a",
+    "title": "Kaynak satırı",
+    "rule": "Kişide \"Portrait source\" satırı \"TMDB API\" olmalı; eski Commons satırı hata sayılır."
+   },
+   {
+    "no": "44",
+    "title": "Galeri",
+    "rule": "Afiş dışı sahne görselleri yalnız yazılı izinle."
+   }
+  ],
+  "text_legal": [
+   {
+    "no": "50",
+    "title": "Klişe avı",
+    "rule": "delve, tapestry, testament to, dive into, captivating, must-watch… hiçbir alanda yok."
+   },
+   {
+    "no": "51",
+    "title": "Yapısal izler",
+    "rule": "Uzun tire yok (5.1); paragraflar aynı uzunlukta değil; üçlü ritim üst üste yok."
+   },
+   {
+    "no": "52",
+    "title": "Meta yorum",
+    "rule": "\"In this section\", \"In conclusion\", TODO, \"Not:\", yer tutucu hiçbir alanda yok. HTML iki kez kaçışlanmamış."
+   },
+   {
+    "no": "53",
+    "title": "EEAT",
+    "rule": "Her iddia kaynaklı ya da kayıt içinden; bilinmeyen açıkça yazılır."
+   },
+   {
+    "no": "54",
+    "title": "Hukuk ve güven",
+    "rule": "TMDB cümlesi ve kaldırma adresi sayfada; korsan siteye bağlantı yok; doğrulanmamış özel hayat sözcüğü yok; sabit cümleler kanıtlanamayan iddia taşımıyor; ortaklık bağlantısı varsa açıklaması var."
+   },
+   {
+    "no": "K-e",
+    "title": "Eski gövde",
+    "rule": "Elementor/Alhambra artığı gövde okunur, yedeği alınır, temizlenir (K17)."
+   },
+   {
+    "no": "K-k",
+    "title": "Yabancı veri",
+    "rule": "Başka kişinin ya da yapımın metni kayıtta yok (K15)."
+   },
+   {
+    "no": "K-i",
+    "title": "Çelişki",
+    "rule": "Künye, sinopsis, SSS, \"Most asked\" ve öne çıkanlar aynı soruya aynı cevabı veriyor (K16)."
+   },
+   {
+    "no": "K-j",
+    "title": "Tekrar",
+    "rule": "Aynı olgu iki bölümde baştan anlatılmıyor (K14)."
+   },
+   {
+    "no": "55",
+    "title": "Güncellik",
+    "rule": "Doğrulama damgası var; yayındaki yapım günlük, diğerleri haftalık yeniden bakılır."
+   },
+   {
+    "no": "56",
+    "title": "Ülkeye göre izleme",
+    "rule": "TMDB (JustWatch verisi), doğrulanmış eşleşmede; ülke sunucu başlığından ya da tarayıcı dilinden."
+   },
+   {
+    "no": "59",
+    "title": "Kapsam",
+    "rule": "Dizi/film: TMDB kadrosunda kaydı olup kadroya bağlanmamış kişi yok; ilk 15'te kaydı olmayanlar listede. Kişi: kaydı olan yapımlarının hepsinde kadroda; kaydı olmayan dizi/film/anime ve yeni işler listede. Haftalık."
+   },
+   {
+    "no": "61",
+    "title": "Kilit",
+    "rule": "Her şey yeşil ve damga varsa içerik parmak izi alınır; kilitli kayıtta metin yeniden yazılmaz. İçerik değişirse kilit bozulur, yalnız değişen alanlar yeniden denetlenir."
+   }
+  ]
+ },
+ "site": [
+  {
+   "no": "S1.1",
+   "rule": "Hiçbir bilgi uydurulmaz. Doğum tarihi, rol adı, kanal, yıl, ödül, ilişki, askerlik, boy, ajans: hepsi bir kaynaktan gelir. Kaynak yoksa alan boş kalır. Boş alan hata değildir; uydurulmuş alan hatadır."
+  },
+  {
+   "no": "S1.2",
+   "rule": "Tahmin yasak. \"Muhtemelen başrol\", \"herhalde 2022\" diye bir şey yok."
+  },
+  {
+   "no": "S1.3",
+   "rule": "Doğrulanmamış özel hayat iddiası yayınlanmaz. Ajans veya kişinin kendi açıklaması varsa tarihi ve kaynağıyla yazılır, yoksa hiç yazılmaz."
+  },
+  {
+   "no": "S1.4",
+   "rule": "Bir bilgi tek yerde tutulur. Filmografi kişi kaydına yazılmaz; dizi/film kaydındaki cast bloğuna yazılır, filmografi `_daw_cast_idx` üzerinden ters okunur."
+  },
+  {
+   "no": "S1.5",
+   "rule": "Sayı vaat edilmez. Başlıktaki \"3 titles\" o gruptaki kartlardan sayılır."
+  },
+  {
+   "no": "S2.1",
+   "rule": "Boş hücre basılmaz. Alan boşsa o satır, etiket veya sütun hiç çizilmez."
+  },
+  {
+   "no": "S2.2",
+   "rule": "Eksiklik duyurulmaz. \"Not recorded\", \"Bilinmiyor\", \"Veri yok\" okura gösterilmez."
+  },
+  {
+   "no": "S2.3",
+   "rule": "Tire yer tutucu olarak kullanılmaz. Yıl yoksa yıl rozeti basılmaz."
+  },
+  {
+   "no": "S2.4",
+   "rule": "Her künye bir posterdir. Filmografide hiçbir kayıt tabloya düşürülmez. Lead, supporting, guest ve künyesi belirsiz (other): dördü de aynı poster kartıyla, aynı rayda. Gruplar arasındaki tek fark üstündeki başlıktır."
+  },
+  {
+   "no": "S2.5",
+   "rule": "Kart altındaki satırda önce tür yazar: \"Drama · SBS · Choi Dal Po\". Bilinmeyen atlanır: sadece \"Film\"."
+  },
+  {
+   "no": "S2.6",
+   "rule": "Filmografi grup sırası sabit: Lead roles, Supporting roles, Guest appearances, Other credits. Boş grup çizilmez."
+  },
+  {
+   "no": "S2.7",
+   "rule": "İnsan puanlanmaz. Okur oylaması sadece dizi ve filmde."
+  },
+  {
+   "no": "S3.1",
+   "rule": "Okur siteden çıkarılmaz. Dış bağlantı ancak zorunluysa konur."
+  },
+  {
+   "no": "S3.2",
+   "rule": "Müzik dışarı bağlanmaz. Spotify ve Apple Music \"Official links\" kartında yer almaz; Spotify sayfa içinde iframe olarak çalar."
+  },
+  {
+   "no": "S3.3",
+   "rule": "\"Official links\" kartında sadece: Instagram, X, Facebook, YouTube, Weibo, IMDb, Wikipedia, Ajans sayfası."
+  },
+  {
+   "no": "S3.4",
+   "rule": "MyDramaList bağlanmaz. Alan kayıtta durur, okura kapı olarak açılmaz."
+  },
+  {
+   "no": "S3.5",
+   "rule": "Sitede kaydı olan her dizi, film, kişi ve haber iç bağlantıyla bağlanır."
+  },
+  {
+   "no": "S3.6",
+   "rule": "Dış bağlantılar `target=\"_blank\" rel=\"noopener\"`."
+  },
+  {
+   "no": "S4.1",
+   "rule": "Onay alınmadan istek gönderilmez. YouTube ve Spotify okur dokunana kadar hiçbir şey indirmez; okur gömülü medyaya zaten onay verdiyse doğrudan gelir."
+  },
+  {
+   "no": "S4.2",
+   "rule": "Yükseklik önceden ayrılır: kişi sayfasında 352px (sanatçı oynatıcısı), dizi sayfasında 152px (albüm şeridi)."
+  },
+  {
+   "no": "S4.3",
+   "rule": "Yeni sekme açılmaz. URL çözülemezse oynatıcı yüklenmez, kart olduğu gibi kalır."
+  },
+  {
+   "no": "S5.1",
+   "rule": "Uzun tire (em dash) yayınlanan hiçbir metinde geçmez."
+  },
+  {
+   "no": "S5.2",
+   "rule": "Yapay zeka tonu yasak: \"Günümüzde\", \"şüphesiz\", \"öte yandan\", \"sonuç olarak\", \"kısacası\", \"bu bağlamda\"."
+  },
+  {
+   "no": "S5.3",
+   "rule": "Cümle büyük harfle başlar; listeden parça atılabiliyorsa büyük harf birleştirme anında verilir, parçaya gömülmez."
+  },
+  {
+   "no": "S5.4",
+   "rule": "HTML kaçışı iki kere yapılmaz: \"Actor and model\", \"Actor &amp; model\" değil."
+  },
+  {
+   "no": "S5.5",
+   "rule": "İlk paragraf 40 ile 60 kelime arası, doğrudan cevap."
+  },
+  {
+   "no": "S6.1",
+   "rule": "URL asla değişmez. Kayıtlar `post_type = post`, taksonomiler `public => false`. Yeni kök yol (`/actor/`, `/tv-shows/`) açılmaz."
+  },
+  {
+   "no": "S6.2",
+   "rule": "Title 60 karakteri geçmez, açıklama 150 ile 160 karakter."
+  },
+  {
+   "no": "S6.3",
+   "rule": "Site adı title'a yazılmaz, tema ekler."
+  },
+  {
+   "no": "S6.4",
+   "rule": "Başlık gerçekte aranan kalıptan kurulur: \"Korean actor\", \"K-Drama\", \"Korean movie\"."
+  },
+  {
+   "no": "S6.5",
+   "rule": "Schema sıfır hata verir. Person düğümüne `publisher` yazılmaz. `aggregateRating` sadece görünen gerçek puanla."
+  },
+  {
+   "no": "S7.1",
+   "rule": "Kayma (CLS) bir hatadır, tercih değil. Hedef sıfır."
+  },
+  {
+   "no": "S7.2",
+   "rule": "Her görsel `aspect-ratio`, her reklam yuvası `min-height`, her oynatıcı gerçek yüksekliğini rezerve eder."
+  },
+  {
+   "no": "S7.3",
+   "rule": "CSS'te varyant kural temel kuralın ALTINA yazılır."
+  },
+  {
+   "no": "S7.4",
+   "rule": "CSS sürümü `filemtime` değerinden gelir, sabit yazılmaz."
+  },
+  {
+   "no": "S7.5",
+   "rule": "Reklam kodu sadece canlı alan adında ve sadece çıkış yapmış ziyaretçiye."
+  },
+  {
+   "no": "S7.6",
+   "rule": "Analytics (GA4) yalnız canlı alan adında, çıkış yapmış ve gerçekten hareket eden (fare, kaydırma, dokunma, tuş) ziyaretçide yüklenir; otomasyonla gelen (webdriver) ölçülmez. Çerez izni (consent mode) varsayılanları korunur: AB, Birleşik Krallık ve İsviçre'de izin gelmeden analytics_storage kapalıdır. Site Kit'in kendi GA4 etiketi kapalı kalır, aynı ölçüm kimliği iki kere yüklenmez. Açıkta kalan fark: hiç hareket etmeden çıkan gerçek ziyaretçi sayılmaz."
+  },
+  {
+   "no": "S8.1",
+   "rule": "Toplu iş 50 kayıtlık partiler halinde. 200 kayıt bu sunucuda 504 veriyor."
+  },
+  {
+   "no": "S8.2",
+   "rule": "Sayfa açılırken sayım için kayıt çekilmez; `COUNT(*)` sorulur."
+  },
+  {
+   "no": "S8.3",
+   "rule": "Önbellek partide bir kez temizlenir, kayıtta bir kez değil."
+  },
+  {
+   "no": "S8.4",
+   "rule": "Önbellek anahtarı biçimini taşır (`daw_flm_v2_`)."
+  },
+  {
+   "no": "S9.1",
+   "rule": "Her gönderimde daw-core ve daw-theme sürümleri artar."
+  },
+  {
+   "no": "S9.2",
+   "rule": "Bir dosyada toplu metin değiştirdikten sonra fonksiyon sayımı doğrulanır: her fonksiyon dosyada tam bir kez tanımlı olmalı. `php -l` sadece söz dizimine bakar, yeniden tanımlamayı yakalamaz."
+  },
+  {
+   "no": "S9.3",
+   "rule": "Şablon değişikliği `/home/claude/preview` altındaki yerel harness ile render edilip 390 ve 1440 pikselde ekran görüntüsüyle kontrol edilir; sitede denenmez."
+  },
+  {
+   "no": "S10.1",
+   "rule": "BL ve GL yapimlar standart dizi kaydi olarak girilir. Tur satirina diger turlerin yaninda BL ya da GL yazilir (ornek: Romance - BL). SEO basliginda ve aciklamada BL ya da GL gecmez; o aramalari BLGLFlix hedefler, DAW genel aramalari (X Thai drama, X cast, X episodes)."
+  },
+  {
+   "no": "S10.2",
+   "rule": "Ana sayfada BL ve GL kayitlar diger yapimlarin arkasina siralanir."
+  },
+  {
+   "no": "S10.3",
+   "rule": "Ana sayfa disinda hicbir fark yoktur: site haritasi, arama, filmografi, arsivler, ic baglantilar normal. noindex konmaz."
+  },
+  {
+   "no": "S10.4",
+   "rule": "Ileride DAW ve BLGLFlix ayni yapimin kayitlarini birbirine baglar; her kayittan karsi siteye tek bir baglam baglantisi. Kural 3.1'in istisnasidir."
+  },
+  {
+   "no": "S11.1",
+   "rule": "Grup üyeliği kişi kaydında tutulur: daw_member_of (grup kaydı: id, slug ya da başlık). Solo sanatçıda ya da hiçbir grubu olmayan kişide alan boş kalır ve kişi sayfasında \"In <grup>\" bölümü hiç çizilmez. Hem solo hem grup üyesi olan kişide ikisi birlikte gösterilir."
+  },
+  {
+   "no": "S11.2",
+   "rule": "Grup bölümündeki her üye bir poster kartıdır (fotoğraf TMDB kişi kaydından, eşleşme doğrulanmışsa), altında adı ve gruptaki görevi: daw_group_position grubun kendi söylediği haliyle, boşsa kişinin mesleği. Rozet (daw_group_badge: leader, maknae, former) yalnız kaynakta yazıyorsa konur. Spotify ve Apple Music görsel kaynağı olarak kullanılmaz (S3.2). Kaydı olmayan üye için kayıt yalnız TMDB eşleşmesi varsa açılır (K23)."
+  },
+  {
+   "no": "S-SES.1",
+   "rule": "DAW sesi: Asya dizilerini çok izlemiş, bilgili ama ukala olmayan bir arkadaşın sesi. Sıcak, meraklı, keyifli, hafif esprili. Övmek için değil, okura karar verdirmek için yazar."
+  },
+  {
+   "no": "S-SES.2",
+   "rule": "Önce somut olgu, sonra kısa ve sahiplenilmiş yorum. Övgü bir olguya dayanır (reyting, ödül, bir sahne, bir karar). Eleştirmen görüşü adıyla verilir; bizim görüşümüz düz söylenir: 'Worth it if you like slow-burn romance; skip it if you need a twist every episode.'"
+  },
+  {
+   "no": "S-SES.3",
+   "rule": "Okura doğrudan hitap serbest ve ölçülü ('you'). Kısaltmalar serbest (it's, don't). Konuşma dili evet, argo ve abartı hayır."
+  },
+  {
+   "no": "S-SES.4",
+   "rule": "Ritim karışık: kısa, vurucu bir cümleden sonra açıklayan uzun bir cümle. Her paragraf farklı açılır; aynı yapı aynı sayfada iki kez kurulmaz."
+  },
+  {
+   "no": "S-SES.5",
+   "rule": "İlk cümle Wikipedia girişi değildir. 'X is a 2024 South Korean television series' yerine okura neden önemli olduğunu söyler: 'Kim Soo-hyun and Kim Ji-won play a married couple who barely speak, and the show spends 16 episodes making you care whether they will.'"
+  },
+  {
+   "no": "S-SES.6",
+   "rule": "Espri hafif ve seyrek (sayfada bir iki kez), kimseyi küçümsemez. Spoiler varsa önce uyarılır."
+  },
+  {
+   "no": "S-SES.7",
+   "rule": "Kontrol: her yeni ya da değişen metin madde 75-81 testinden geçer; kırmızı satır kaldıkça kayıt Temel bitti olmaz. Yazan ajan yazdıktan sonra reaudit çalıştırır ve 75-81 satırlarını kapatır."
+  }
+ ],
+ "fields": {
+  "daw_takeaways": {
+   "no": "22",
+   "rule": "4–6 madde; her biri tek olgu, sayılı ve tarihli. Bir H2'nin tezini tekrar eden madde değiştirilir (K14)."
+  },
+  "daw_why_watched": {
+   "no": "23",
+   "rule": "Neden hâlâ izlendiği. Editoryal yorum serbest, içindeki her olgu kaynaklı. Söylenecek bir şey yoksa N/A."
+  },
+  "daw_synopsis": {
+   "no": "21",
+   "rule": "En az 200 kelime, 3-4 paragraf; çok aranan yapımda (bir kalıp ayda 5.000+) en az 350 kelime, 5-6 paragraf. Karakterlerin işi, geçmişi, çatışma, mekân, ton. Dolgu yok: her cümle kaynaklı, başka bölümü tekrar etmez (K14), final spoiler’ı verilmez. Yazmadan önce Ubersuggest kalıpları okunur (K25); en çok aranan konular önce ve geniş anlatılır. Uzun kuyruk arama kalıpları buraya girer (K11). Sinopsise sığmayan, ayda 1.000+ aranan ayrı konu için ek H2 açılır (madde 63)."
+  },
+  "daw_title_section_title": {
+   "no": "63",
+   "rule": "İsteğe bağlı ek H2 başlığı: yalnız ayda 1.000+ aranan ayrı bir konu varsa ve başlık o kalıbı taşıyorsa (K11). Yoksa açılmaz."
+  },
+  "daw_title_section_body": {
+   "no": "63",
+   "rule": "Ek H2 metni: en az 120 kelime, her cümle kaynaklı, sayfanın başka bölümünü tekrar etmez (K14)."
+  },
+  "daw_native_title": {
+   "no": "4",
+   "rule": "Yalnızca kendi alfabesi (Hangul, Kana/Kanji, Han, Tay). Latin harf ya da parantezli çeviri yok."
+  },
+  "daw_also_known_as": {
+   "no": "5",
+   "rule": "Uluslararası ve alternatif adlar; otomatik tamamlamada geçen romanize ad da buraya. Yoksa N/A."
+  },
+  "daw_screenwriter": {
+   "no": "18",
+   "rule": "Senarist, kaynaktan okunan romanizasyonla; birden çok ise ayrı satır."
+  },
+  "daw_director": {
+   "no": "17",
+   "rule": "Yönetmen(ler), kaynaktan. Web dizisinde çoğu zaman yalnız MyDramaList'te."
+  },
+  "daw_tags": {
+   "no": "24",
+   "rule": "Hikâyenin ne hakkında olduğu (ör. \"Newsroom\", \"Revenge\"). Tür terimi değil, onlar taksonomide."
+  },
+  "daw_adaptation": {
+   "no": "25",
+   "rule": "\"Webtoon, Eser adı\" tek satır. Özgün senaryoda boş kalır ve N/A olarak işaretlenir."
+  },
+  "daw_production": {
+   "no": "19",
+   "rule": "Yapım şirketi, kanal değil (Pinocchio: iHQ, SBS değil). Dizi olarak yazılır. Schema productionCompany buradan."
+  },
+  "daw_language": {
+   "no": "20",
+   "rule": "Orijinal dil."
+  },
+  "daw_episodes": {
+   "no": "10",
+   "rule": "Kaynaktan okunan toplam bölüm; çok sezonluda tüm sezonların toplamı."
+  },
+  "daw_seasons": {
+   "no": "10",
+   "rule": "Özel bölümler sayılmadan sezon sayısı. TMDB ile Wikidata aynıysa sistem yazar (tek sezonda Wikidata bölüm toplamı TMDB ile aynıysa da kabul). Filmde N/A. Birden fazlaysa Details kartında görünür; schema numberOfSeasons buradan gelir."
+  },
+  "daw_duration_min": {
+   "no": "11",
+   "rule": "Ölçülen bölüm süresi, nominal kuşak değil (K4). İki kaynak çelişirse not düşülür."
+  },
+  "daw_aired_start": {
+   "no": "12",
+   "rule": "İlk yayın, UTC gece yarısı."
+  },
+  "daw_aired_end": {
+   "no": "13",
+   "rule": "Bitmiş yapımda boş olamaz. Tek günde çıkan platform yapımında = ilk yayın; çok sezonluda son sezonun sonu."
+  },
+  "daw_airing_days": {
+   "no": "14",
+   "rule": "Yayın günleri; değiştiyse \"Sunday, then Tuesday\"."
+  },
+  "daw_content_rating": {
+   "no": "15",
+   "rule": "Yaş sınırı, kaynaklı. Yoksa N/A."
+  },
+  "daw_status": {
+   "no": "16",
+   "rule": "completed / ongoing / upcoming; bugünün tarihiyle ve 12–13 ile tutarlı. Boş olamaz."
+  },
+  "daw_tmdb_id": {
+   "no": "6",
+   "rule": "TMDB kaydı; eşleşme sistemce doğrulanmış olmalı (yıl ±1, yerel ad). Yoksa kayıt açılmaz (K23)."
+  },
+  "daw_blgl_url": {
+   "no": "3",
+   "rule": "Yalnız BL/GL yapımlarda; diğerlerinde uygulanmaz."
+  },
+  "daw_best_scenes": {
+   "no": "26",
+   "rule": "Sahne satırları (40) doluysa boş kalır; tema bu paneli çizmez (K14)."
+  },
+  "daw_filming_location": {
+   "no": "27",
+   "rule": "Yalnız doğrulanmış mekânlar, kaynaklı. Tahmin yok."
+  },
+  "daw_visual_design": {
+   "no": "28",
+   "rule": "Yönetmen ya da görüntü yönetmeni beyanı veya atıflı eleştiri. Yoksa bilinmediği açıkça yazılır ya da N/A."
+  },
+  "daw_themes_messages": {
+   "no": "29",
+   "rule": "Premise ve beyanlardan; yorum az, olgu önce."
+  },
+  "daw_interesting_facts": {
+   "no": "30",
+   "rule": "Basın toplantısı ve röportajdan, tarihli. Kaynaksız fıkra yok, özellikle gerçek kişiler hakkında."
+  },
+  "daw_remakes": {
+   "no": "57",
+   "rule": "Yeniden çekimler ve yabancı versiyonlar, kaynaklı. Yoksa N/A."
+  },
+  "daw_awards": {
+   "no": "41",
+   "rule": "Ödül tablosu doluysa boş kalır: aynı bilgi iki kez yazılmaz (K14)."
+  },
+  "daw_real_life_loves": {
+   "no": "31",
+   "rule": "Yalnız ajansın ya da kişinin kendi tarihli açıklaması. Neredeyse her zaman N/A (kural 1.3)."
+  },
+  "daw_trailer_youtube": {
+   "no": "42",
+   "rule": "Dağıtıcının doğrulanmış kanalından fragman ya da teaser; fan yüklemesi değil."
+  },
+  "daw_trailer_date": {
+   "no": "42",
+   "rule": "YouTube'daki yükleme tarihi. Schema VideoObject uploadDate buradan; boşsa hiç tarih gönderilmez."
+  },
+  "daw_link_imdb": {
+   "no": "58",
+   "rule": "Yapımın IMDb sayfası. Okura bağlantı olarak çizilmez, yalnız schema sameAs."
+  },
+  "daw_link_wikipedia": {
+   "no": "58",
+   "rule": "İngilizce Wikipedia maddesi. Yalnız schema sameAs."
+  },
+  "daw_spotify_uri": {
+   "no": "43",
+   "rule": "OST albümü Spotify'da varsa albüm ya da playlist URL'si."
+  },
+  "daw_gallery": {
+   "no": "44",
+   "rule": "Yalnız yazılı izinli malzeme. Genelde N/A."
+  },
+  "daw_cast_person": {
+   "no": "32",
+   "rule": "Kademeli kadro varsa uygulanmaz (eski düz liste)."
+  },
+  "daw_cast_main_person": {
+   "no": "32",
+   "rule": "Kaydı olan her başrol bağlı. Kaydı olmayanlar sayılır ve adları listeye yazılır."
+  },
+  "daw_cast_main_role": {
+   "no": "33",
+   "rule": "Karakter adı, kaynak romanizasyonuyla; kişi sayısıyla aynı satır sayısı."
+  },
+  "daw_cast_main_eps": {
+   "no": "34",
+   "rule": "Tam sezon başrolde boş kalır (uygulanmaz)."
+  },
+  "daw_cast_supporting_person": {
+   "no": "32",
+   "rule": "Kaydı olan her yan rol bağlı."
+  },
+  "daw_cast_supporting_role": {
+   "no": "33",
+   "rule": "Karakter adı; kişi sayısıyla eşit."
+  },
+  "daw_cast_supporting_eps": {
+   "no": "34",
+   "rule": "Zorunlu (K18): \"Appears in episodes 3 and 7\", \"Appears from episode 3\". Kaynak yoksa N/A ve sebebi."
+  },
+  "daw_cast_guest_person": {
+   "no": "32",
+   "rule": "Konuk ve özel katılımlar, kaydı olanlar bağlı."
+  },
+  "daw_cast_guest_role": {
+   "no": "33",
+   "rule": "Karakter adı."
+  },
+  "daw_cast_guest_eps": {
+   "no": "34",
+   "rule": "Zorunlu: \"Appears in episode 12\". Kaynak: MyDramaList + 특별출연 haberleri."
+  },
+  "daw_watch_platform": {
+   "no": "45",
+   "rule": "Resmi platform adı."
+  },
+  "daw_watch_url": {
+   "no": "45",
+   "rule": "Platformda yapımın kendi sayfası (arama sayfası değil), açılıp doğrulanmış. Wikidata’da kimliği olmayan platformlarda (Kocowa, iQIYI, Viu gibi) buraya yazılır; ülke listesindeki aynı platform satırı da bu adrese gider (madde 56). Schema WatchAction buradan."
+  },
+  "daw_watch_access": {
+   "no": "45",
+   "rule": "Subscription / Free with ads / Rent or buy."
+  },
+  "daw_scene_title": {
+   "no": "40",
+   "rule": "Sahnenin adı; uzlaşılmış ya da atıflı kaynakta geçen sahne."
+  },
+  "daw_scene_ep": {
+   "no": "40",
+   "rule": "Bölüm numarası."
+  },
+  "daw_scene_note": {
+   "no": "40",
+   "rule": "Ne olduğu, kaynaklı; bölüm özetini tekrar etmez."
+  },
+  "daw_rel_post": {
+   "no": "—",
+   "rule": "Aynı hikâyenin başka kaydı (sezon, film, remake)."
+  },
+  "daw_rel_kind": {
+   "no": "—",
+   "rule": "İlişki türü: Sequel, Remake, Same webtoon…"
+  },
+  "daw_ep_no": {
+   "no": "35",
+   "rule": "Her bölüm, yayınlanmayanlar dahil."
+  },
+  "daw_ep_title": {
+   "no": "36",
+   "rule": "Varsa; orijinal dildeyse çeviri + parantezde Korecesi."
+  },
+  "daw_ep_date": {
+   "no": "35",
+   "rule": "Kaynaktan okunur, hesaplanmaz (K4). Aynı gün iki bölüm varsa kaynakla doğrulanır."
+  },
+  "daw_ep_rating": {
+   "no": "38",
+   "rule": "\"Nationwide rating %\", Nielsen/TNmS kaynaklı. YouTube izlenmesi buraya yazılmaz."
+  },
+  "daw_ep_synopsis": {
+   "no": "37",
+   "rule": "Yayınlanan her bölüme bir cümlelik özgün özet."
+  },
+  "daw_ost_album": {
+   "no": "39",
+   "rule": "Spotify albüm URL'si (albüm adı değil). Albüm yoksa boş, parçalar yine dolar."
+  },
+  "daw_ost_track": {
+   "no": "39",
+   "rule": "\"Şarkı adı, Part N\", her parça ayrı satır."
+  },
+  "daw_ost_artist": {
+   "no": "39",
+   "rule": "\"Sanatçı, çıkış tarihi\"."
+  },
+  "daw_aw_year": {
+   "no": "41",
+   "rule": "Tören yılı."
+  },
+  "daw_aw_body": {
+   "no": "41",
+   "rule": "Tören adı."
+  },
+  "daw_aw_category": {
+   "no": "41",
+   "rule": "Kategori."
+  },
+  "daw_aw_who": {
+   "no": "41",
+   "rule": "Kim aldı ya da aday oldu."
+  },
+  "daw_aw_result": {
+   "no": "41",
+   "rule": "Won / Nominated; her satırda ayrıca doğrulanır (en sık hata). Schema'ya yalnız kazanılanlar gider."
+  },
+  "daw_faq_q": {
+   "no": "K-d",
+   "rule": "En az 5 soru; gerçek arama kalıplarından (Ubersuggest, otomatik tamamlama), uydurma değil."
+  },
+  "daw_faq_a": {
+   "no": "K-d",
+   "rule": "Soru sayısıyla eşit; tek başına okunur, adı tekrar eder; FAQPage schema buradan."
+  },
+  "daw_news_kicker": {
+   "no": "—",
+   "rule": "Üst etiket, kısa."
+  },
+  "daw_news_standfirst": {
+   "no": "—",
+   "rule": "Giriş cümlesi; ilk 40–60 kelimede doğrudan cevap."
+  },
+  "daw_news_source_name": {
+   "no": "—",
+   "rule": "Haberi ilk veren yayın; her kaynak ayrı satır."
+  },
+  "daw_news_source_url": {
+   "no": "—",
+   "rule": "Orijinal haberin bağlantısı; ad satırlarıyla eşit sayıda."
+  },
+  "daw_news_confirmed": {
+   "no": "—",
+   "rule": "Yalnız resmi kaynağın doğruladığı olgular. Söylenti olgu gibi yazılmaz."
+  },
+  "daw_news_tl_date": {
+   "no": "—",
+   "rule": "Zaman çizelgesi tarihi, kaynaklı."
+  },
+  "daw_news_tl_event": {
+   "no": "—",
+   "rule": "O tarihte ne oldu; tarih satırlarıyla eşit."
+  },
+  "daw_mentions": {
+   "no": "—",
+   "rule": "Haberde geçen kayıtlar (kişi, dizi); iki yönlü iç bağlantı ve schema about buradan."
+  },
+  "daw_native_name": {
+   "no": "—",
+   "rule": "Yalnız kendi alfabesi; Latin harf, parantezli romanizasyon ya da gerçek ad olmaz."
+  },
+  "daw_nationality": {
+   "no": "—",
+   "rule": "Uyruk, kaynaklı."
+  },
+  "daw_gender": {
+   "no": "—",
+   "rule": "Schema gender ve görsel alt metni (\"Korean actress\") buradan. Kişinin kendi tanımı."
+  },
+  "daw_born": {
+   "no": "—",
+   "rule": "Doğum tarihi; iki kaynak tutmalı. Görsel eşleşmesi de bununla doğrulanır (±1 gün)."
+  },
+  "daw_died": {
+   "no": "—",
+   "rule": "Yalnız vefat etmişse; diğerlerinde uygulanmaz."
+  },
+  "daw_occupation": {
+   "no": "—",
+   "rule": "Meslekler; ilki başlıkta ve alt metinde kullanılır (\"Korean singer\")."
+  },
+  "daw_birth_place": {
+   "no": "—",
+   "rule": "Doğum yeri, kaynaklı."
+  },
+  "daw_zodiac": {
+   "no": "—",
+   "rule": "Doğum tarihinden."
+  },
+  "daw_height_cm": {
+   "no": "—",
+   "rule": "Ajans profili ya da röportaj. Profil toplayıcı siteler (kprofiles vb.) kaynak değil."
+  },
+  "daw_spouse": {
+   "no": "—",
+   "rule": "Yalnız evliyse ve kamuya açıklanmışsa; bekârda uygulanmaz."
+  },
+  "daw_children": {
+   "no": "—",
+   "rule": "Kamuya açıklanmışsa."
+  },
+  "daw_agency": {
+   "no": "—",
+   "rule": "Güncel ajans; değiştiyse tarihli kariyer satırına."
+  },
+  "daw_member_of": {
+   "no": "—",
+   "rule": "Grup üyeliği; grup kaydına bağlanır."
+  },
+  "daw_relationships": {
+   "no": "—",
+   "rule": "Yalnız kişinin ya da ajansın tarihli açıklaması (kural 1.3). Söylenti yayınlanmaz."
+  },
+  "daw_biography": {
+   "no": "—",
+   "rule": "Omurga metin, Biography H2 şart. Diğer bölümleri tekrar etmez, onlara atıf yapar."
+  },
+  "daw_military_panel": {
+   "no": "—",
+   "rule": "Askerlik: giriş/çıkış tarihi, birlik; kaynaklı. Kadınlarda uygulanmaz."
+  },
+  "daw_hobbies": {
+   "no": "—",
+   "rule": "Röportaj ya da yayından, tarihli. Profil sitesi kaynak değil."
+  },
+  "daw_interests": {
+   "no": "—",
+   "rule": "Aynı kural: kaynaklı ve tarihli."
+  },
+  "daw_facts": {
+   "no": "—",
+   "rule": "Kaynaklı olgular; fıkra değil."
+  },
+  "daw_secrets": {
+   "no": "—",
+   "rule": "Az bilinen ama kaynaklı ayrıntılar; yer tutucu (\"[REDACTED]\") kalmaz."
+  },
+  "daw_funny_things": {
+   "no": "—",
+   "rule": "Yayın ya da röportajda geçen anlar, tarihli."
+  },
+  "daw_fears": {
+   "no": "—",
+   "rule": "Kendi söylediği, tarihli."
+  },
+  "daw_endorsements": {
+   "no": "—",
+   "rule": "Marka + yıl, kaynaklı; sponsorlu yapımla çapraz atıf (K22)."
+  },
+  "daw_sports": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_instruments_panel": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_person_news": {
+   "no": "—",
+   "rule": "Sitedeki haber kayıtlarına bağlı."
+  },
+  "daw_social_instagram": {
+   "no": "—",
+   "rule": "Resmi, doğrulanmış hesap."
+  },
+  "daw_social_x": {
+   "no": "—",
+   "rule": "Resmi hesap."
+  },
+  "daw_social_youtube": {
+   "no": "—",
+   "rule": "Resmi kanal."
+  },
+  "daw_social_weibo": {
+   "no": "—",
+   "rule": "Resmi hesap."
+  },
+  "daw_social_facebook": {
+   "no": "—",
+   "rule": "Resmi sayfa."
+  },
+  "daw_person_summary": {
+   "no": "—",
+   "rule": "Tek satır özet; schema description."
+  },
+  "daw_person_takeaways": {
+   "no": "—",
+   "rule": "Olgu maddeleri; düz metin çizilir, HTML yazılmaz."
+  },
+  "daw_person_section_title": {
+   "no": "—",
+   "rule": "Genel bakış bölüm başlığı; aranan kalıpla (K11)."
+  },
+  "daw_person_section_body": {
+   "no": "—",
+   "rule": "Bölüm metni; başlık sayısıyla eşit."
+  },
+  "daw_marital_status": {
+   "no": "—",
+   "rule": "Kamuya açık duruma göre."
+  },
+  "daw_partner": {
+   "no": "—",
+   "rule": "Yalnız onaylanmış partner, tarihli."
+  },
+  "daw_pairings": {
+   "no": "—",
+   "rule": "Ekrandaki eşleşmeler; gerçek hayat söylentisi değil."
+  },
+  "daw_real_name": {
+   "no": "—",
+   "rule": "Sahne adından farklıysa, kaynaklı."
+  },
+  "daw_religion": {
+   "no": "—",
+   "rule": "Yalnız kendi açıklaması."
+  },
+  "daw_weight_kg": {
+   "no": "—",
+   "rule": "Resmi kaynak yoksa N/A; profil siteleri kaynak değil."
+  },
+  "daw_blood_type": {
+   "no": "—",
+   "rule": "Resmi profil ya da kendi açıklaması."
+  },
+  "daw_chinese_zodiac": {
+   "no": "—",
+   "rule": "Doğum yılından."
+  },
+  "daw_edu_elementary": {
+   "no": "—",
+   "rule": "Kaynaklı okul adı."
+  },
+  "daw_edu_middle": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_edu_high": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_edu_university": {
+   "no": "—",
+   "rule": "Kaynaklı; schema alumniOf buradan."
+  },
+  "daw_career_year": {
+   "no": "—",
+   "rule": "Yıl."
+  },
+  "daw_career_event": {
+   "no": "—",
+   "rule": "O yıl ne oldu; yıl satırlarıyla eşit."
+  },
+  "daw_debut": {
+   "no": "—",
+   "rule": "Çıkış işi ve tarihi."
+  },
+  "daw_mil_status": {
+   "no": "—",
+   "rule": "Served / Serving / Exempt / Not yet; kaynaklı."
+  },
+  "daw_mil_branch": {
+   "no": "—",
+   "rule": "Kuvvet."
+  },
+  "daw_mil_unit": {
+   "no": "—",
+   "rule": "Birlik, açıklanmışsa."
+  },
+  "daw_mil_served": {
+   "no": "—",
+   "rule": "Tarih aralığı."
+  },
+  "daw_fam_father": {
+   "no": "—",
+   "rule": "Yalnız kamuya açık bilgi."
+  },
+  "daw_fam_mother": {
+   "no": "—",
+   "rule": "Yalnız kamuya açık bilgi."
+  },
+  "daw_fam_siblings": {
+   "no": "—",
+   "rule": "Yalnız kamuya açık bilgi."
+  },
+  "daw_mbti": {
+   "no": "—",
+   "rule": "Kişinin kendi söylediği, tarihli; profil siteleri değil."
+  },
+  "daw_traits": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_skills": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_instruments": {
+   "no": "—",
+   "rule": "Kaynaklı."
+  },
+  "daw_music_act": {
+   "no": "—",
+   "rule": "Müzik sayfasında gösterilsin mi."
+  },
+  "daw_spotify_artist": {
+   "no": "—",
+   "rule": "Spotify sanatçı sayfası; sayfa içinde oynatıcı olarak çalar, dışarı bağlanmaz (3.2)."
+  },
+  "daw_mus_year": {
+   "no": "—",
+   "rule": "Yıl."
+  },
+  "daw_mus_title": {
+   "no": "—",
+   "rule": "Parça ya da görünüm; metinde adı geçen her parça tabloda."
+  },
+  "daw_mus_credit": {
+   "no": "—",
+   "rule": "Credited as."
+  },
+  "daw_mus_kind": {
+   "no": "—",
+   "rule": "OST / Single / Group / MV ayrımı."
+  },
+  "daw_shop_title": {
+   "no": "—",
+   "rule": "Ortaklık programı onaylanınca; şimdilik uygulanmaz."
+  },
+  "daw_shop_kind": {
+   "no": "—",
+   "rule": "Aynı."
+  },
+  "daw_shop_url": {
+   "no": "—",
+   "rule": "Aynı."
+  },
+  "daw_src_portrait": {
+   "no": "—",
+   "rule": "\"TMDB API\" ya da kendi fotoğrafın; eski \"Commons\" satırı güncellenir."
+  },
+  "daw_src_rights": {
+   "no": "—",
+   "rule": "Hak sahibi."
+  },
+  "daw_src_basis": {
+   "no": "—",
+   "rule": "Kullanım dayanağı."
+  },
+  "daw_src_meta": {
+   "no": "—",
+   "rule": "Verinin kaynakları."
+  },
+  "daw_src_editor": {
+   "no": "—",
+   "rule": "Kaydı denetleyen."
+  },
+  "daw_paw_year": {
+   "no": "—",
+   "rule": "Tören yılı."
+  },
+  "daw_paw_body": {
+   "no": "—",
+   "rule": "Tören."
+  },
+  "daw_paw_category": {
+   "no": "—",
+   "rule": "Kategori."
+  },
+  "daw_paw_work": {
+   "no": "—",
+   "rule": "Hangi yapım için; kaydı varsa bağlanır."
+  },
+  "daw_paw_result": {
+   "no": "—",
+   "rule": "Won / Nominated, satır satır doğrulanır."
+  },
+  "daw_paw_name": {
+   "no": "—",
+   "rule": "Eski tek satırlık alan; uygulanmaz."
+  },
+  "daw_link_mdl": {
+   "no": "—",
+   "rule": "Alanda durur, okura bağlanmaz (3.4)."
+  },
+  "daw_link_agency": {
+   "no": "—",
+   "rule": "Ajansın profil sayfası."
+  },
+  "daw_link_apple": {
+   "no": "—",
+   "rule": "Official links kartında yer almaz (3.2)."
+  },
+  "daw_pfaq_q": {
+   "no": "—",
+   "rule": "En az 5; gerçek arama kalıplarından (age, height, dramas, military, tv shows with X…)."
+  },
+  "daw_pfaq_a": {
+   "no": "—",
+   "rule": "Soru sayısıyla eşit; düz metin, HTML yok."
+  },
+  "daw_ask_q": {
+   "no": "—",
+   "rule": "\"Most asked\" kartı etiketi."
+  },
+  "daw_ask_a": {
+   "no": "—",
+   "rule": "Tek satır cevap; SSS ile çelişmez (K16)."
+  },
+  "daw_ask_to": {
+   "no": "—",
+   "rule": "Sayfada atladığı bölüm."
+  },
+  "daw_group_position": {
+   "no": "—",
+   "rule": "Yalnız grup üyesinde; grubun kendi tanımı."
+  },
+  "daw_group_badge": {
+   "no": "—",
+   "rule": "Rozet."
+  },
+  "daw_group_debut": {
+   "no": "—",
+   "rule": "Çıkış tarihi, duyurulduğu gibi; schema foundingDate."
+  },
+  "daw_group_fandom": {
+   "no": "—",
+   "rule": "Resmi fandom adı."
+  },
+  "daw_group_status": {
+   "no": "—",
+   "rule": "Active / Hiatus / Disbanded."
+  },
+  "daw_group_summary": {
+   "no": "—",
+   "rule": "2–3 cümle; schema description."
+  },
+  "daw_group_kind": {
+   "no": "—",
+   "rule": "Boy group / Girl group / Band…"
+  },
+  "daw_group_formed": {
+   "no": "—",
+   "rule": "Kuruluş yılı (çıkıştan farklı olabilir)."
+  },
+  "daw_group_based": {
+   "no": "—",
+   "rule": "Merkez şehir."
+  },
+  "daw_group_member_count": {
+   "no": "—",
+   "rule": "Güncel kadro sayısı; boşsa profillerden sayılır."
+  },
+  "daw_group_former_name": {
+   "no": "—",
+   "rule": "Eski ad."
+  },
+  "daw_group_nicknames": {
+   "no": "—",
+   "rule": "Basın ve hayranların gerçekten kullandığı."
+  },
+  "daw_group_label": {
+   "no": "—",
+   "rule": "Plak şirketi, ajanstan farklıysa."
+  },
+  "daw_group_debut_release": {
+   "no": "—",
+   "rule": "Çıkış yayını."
+  },
+  "daw_group_fandom_colour": {
+   "no": "—",
+   "rule": "Resmi renk."
+  },
+  "daw_group_lightstick": {
+   "no": "—",
+   "rule": "Resmi ışık çubuğu var mı."
+  },
+  "daw_rel": {
+   "no": "—",
+   "rule": "Her yayın: ad, tarih, tür, kapak (Spotify adresinden), parça listesi."
+  },
+  "daw_apple_artist": {
+   "no": "—",
+   "rule": "Apple Music sanatçı sayfası."
+  },
+  "daw_social_weverse": {
+   "no": "—",
+   "rule": "Weverse ya da fan cafe."
+  },
+  "daw_group_embed": {
+   "no": "—",
+   "rule": "Tek oynatıcı adresi."
+  },
+  "daw_gfaq_q": {
+   "no": "—",
+   "rule": "En az 5; members, what does X stand for, debut, fandom, lightstick…"
+  },
+  "daw_gfaq_a": {
+   "no": "—",
+   "rule": "Soru sayısıyla eşit."
+  },
+  "daw_guide_standfirst": {
+   "no": "—",
+   "rule": "Giriş; ya da özet (excerpt) olarak."
+  },
+  "daw_food_kind": {
+   "no": "—",
+   "rule": "Yemek türü (yalnız food)."
+  },
+  "daw_guide_native": {
+   "no": "—",
+   "rule": "Kendi dilindeki adı, kendi alfabesiyle."
+  },
+  "daw_guide_hero_credit": {
+   "no": "—",
+   "rule": "Ana görselin atfı: Commons lisansı ya da \"own\"."
+  },
+  "daw_glance_label": {
+   "no": "—",
+   "rule": "Bir bakışta satırı; ya da metin içindeki tablo."
+  },
+  "daw_glance_value": {
+   "no": "—",
+   "rule": "Değer; satır sayısı eşit."
+  },
+  "daw_onscreen_title": {
+   "no": "—",
+   "rule": "Ekranda geçtiği yapım kaydı."
+  },
+  "daw_onscreen_note": {
+   "no": "—",
+   "rule": "O yapımda ne oluyor."
+  },
+  "daw_guide_source_name": {
+   "no": "—",
+   "rule": "Kaynak adı; ya da metindeki kaynak listesi."
+  },
+  "daw_guide_source_url": {
+   "no": "—",
+   "rule": "Bağlantı; ad sayısıyla eşit."
+  },
+  "daw_original_author": {
+   "no": "60",
+   "rule": "Yalnız uyarlamada: webtoon, roman ya da manga yazarı. TMDB ekip listesiyle karşılaştırılır; schema isBasedOn > author."
+  },
+  "daw_studio": {
+   "no": "60",
+   "rule": "Yalnız animede: animasyon stüdyosu; schema productionCompany."
+  },
+  "daw_producer": {
+   "no": "60",
+   "rule": "Yalnız varyetede: aranan PD adı; schema producer."
+  },
+  "daw_bio_intro": {
+   "no": "68",
+   "rule": "Istege bagli. Birden fazla hacimli H2'ye bolunmus kayitta 'Biography' basliginin altinda gosterilir; tek boluumlu ya da fallback kayitta gosterilmez (zaten kendi H2'si 'Biography'). Ozet ya da alt bolum tekrari olmaz (K14), kaynakli (K24)."
+  },
+  "daw_tmdb_alt": {
+   "no": "72",
+   "rule": "Yalnız eşleme için: TMDB'de bu yapım bu kimlikle de geçiyor (\"tv:83893\" ya da \"movie:1455382\"). Afiş, kadro, izleme yerleri ve schema daw_tmdb_id'den gelmeye devam eder. Kapsam kontrolü (madde 59) kişi kredisini önce daw_tmdb_id'de, bulunamazsa bu listede arar; eşleşen kredi 'kaydı var' sayılır ve o kayda bağlanır."
+  }
+ }
+}
