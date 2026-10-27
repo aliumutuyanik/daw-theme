@@ -37,6 +37,9 @@ const DAW_AE_VERSION = 7; // 7: full keyword research rule (1.75.71)
 const DAW_AE_META    = '_daw_audit';
 const DAW_AE_YOK     = '_daw_yok';
 const DAW_AE_KW      = '_daw_kw';
+// Madde 48: a missing pattern is red only at this volume or in the top N.
+const DAW_KW_MUST_VOL = 1000;
+const DAW_KW_MUST_TOP = 15;
 const DAW_KW_FULL_SINCE = '2026-10-15'; // full-list research rule (1.75.71)
 const DAW_AE_LOCK    = '_daw_lock';
 
@@ -412,7 +415,7 @@ function daw_ae_audit( $post_id ) {
 				$state = 'ok';
 				$note  = '';
 				foreach ( $vals as $v ) {
-					$texts[] = array( $label, $v );
+					$texts[] = array( $label, $v, $id );
 				}
 			} elseif ( '' !== $na ) {
 				$state = 'na';
@@ -823,19 +826,31 @@ function daw_ae_audit( $post_id ) {
 				? array( 'Anahtar kelime araştırması', '0 kalıp', 'ok', 'Araştırıldı, hacimli kalıp yok: ' . mb_substr( $knote, 0, 120 ) )
 				: array( 'Anahtar kelime araştırması', '', 'eksik', 'Kayıtlı kalıp yok: araştırmada _daw_kw yazılmalı (hacimli kalıp çıkmadıysa _daw_yok[\'_daw_kw\'] tohumlar ve tarihle)' );
 		}
+		// Madde 48 (1.75.86, Umut 27 Oct 2026): the full Ubersuggest list is
+		// kept, but only the big patterns must be on the page. A pattern at
+		// DAW_KW_MUST_VOL a month or more, or among the DAW_KW_MUST_TOP
+		// biggest, is red when missing; the long tail is an opportunity
+		// (wait), so a richer list no longer pushes a record out of Temel.
+		$kvols = array();
+		foreach ( $kws as $kw ) {
+			$kvols[] = is_array( $kw ) ? (int) ( $kw['vol'] ?? 0 ) : 0;
+		}
+		rsort( $kvols );
+		$kcut = $kvols ? $kvols[ min( count( $kvols ), DAW_KW_MUST_TOP ) - 1 ] : 0;
 		foreach ( $kws as $kw ) {
 			$k      = strtolower( trim( (string) ( is_array( $kw ) ? ( $kw['kw'] ?? '' ) : $kw ) ) );
 			$vol    = is_array( $kw ) ? (int) ( $kw['vol'] ?? 0 ) : 0;
 			if ( '' === $k ) {
 				continue;
 			}
+			$must = $vol >= DAW_KW_MUST_VOL || ( $vol > 0 && $vol >= $kcut );
 			$where = array();
 			foreach ( array( 'title' => 'başlık', 'desc' => 'açıklama', 'body' => 'metin', 'faq' => 'SSS' ) as $hk => $hl ) {
 				if ( daw_ae_kw_in( $k, $haystack[ $hk ], in_array( $hk, array( 'title', 'desc' ), true ) ) ) {
 					$where[] = $hl;
 				}
 			}
-			$seo[] = array( '"' . $k . '"', ( $vol ? $vol . '/ay · ' : '' ) . ( $where ? implode( ', ', $where ) : 'sayfada yok' ), $where ? 'ok' : 'no', $where ? '' : 'Kalıp hiçbir yere yerleşmemiş' );
+			$seo[] = array( '"' . $k . '"', ( $vol ? $vol . '/ay · ' : '' ) . ( $where ? implode( ', ', $where ) : 'sayfada yok' ), $where ? 'ok' : ( $must ? 'no' : 'wait' ), $where ? '' : ( $must ? 'Kalıp hiçbir yere yerleşmemiş' : 'Fırsat: küçük kalıp, kaynaklı bir cümleyle karşılanabiliyorsa yerleştir' ) );
 		}
 	}
 	$sections['seo'] = array( 'label' => 'SEO ve anahtar kelimeler', 'items' => $seo );

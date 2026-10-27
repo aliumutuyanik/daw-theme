@@ -343,7 +343,7 @@
   {
    "no": "48",
    "title": "Yerlesim",
-   "rule": "En hacimli kalip SEO basliginda (K-b), ikincisi aciklamada (K-c), geri kalanlar sinopsis (21), SSS (K-d) ve H2'lerde. Ayni kalip iki yere yazilmaz: K-j hala gecerli",
+   "rule": "En hacimli kalip SEO basliginda (K-b), ikincisi aciklamada (K-c), geri kalanlar sinopsis (21), SSS (K-d) ve H2'lerde. Ayni kalip iki yere yazilmaz: K-j hala gecerli. 1.75.86: eksik kalip yalniz en buyuk 15 kalip ya da ayda 1.000+ aranan kalipsa kirmizidir; geri kalan uzun kuyruk bekleyen (firsat) satiridir, Temel'i engellemez",
    "group": "J. Anahtar kelime katmani: Ubersuggest (4)",
    "check": "auto"
   },
@@ -718,7 +718,7 @@
    {
     "no": "48",
     "title": "Yerleşim",
-    "rule": "En hacimli başlıkta, ikincisi açıklamada, gerisi sinopsis, SSS ve H2'lerde. Aynı kalıp iki yere yazılmaz. Panel her kalıbın nerede durduğunu gösterir."
+    "rule": "En hacimli başlıkta, ikincisi açıklamada, gerisi sinopsis, SSS ve H2'lerde. Aynı kalıp iki yere yazılmaz. Eksik kalıp yalnız en büyük 15 kalıp ya da ayda 1.000+ aranan kalıpsa kırmızıdır; küçük kalıplar fırsat (bekleyen) satırıdır. Panel her kalıbın nerede durduğunu gösterir."
    },
    {
     "no": "49",

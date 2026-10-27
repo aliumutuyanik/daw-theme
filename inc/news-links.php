@@ -141,7 +141,14 @@ function daw_flush_title_index() {
  */
 function daw_news_mentions( $post_id, $content = null ) {
 	$post_id = (int) $post_id;
-	$manual  = array_filter( array_map( 'intval', (array) get_post_meta( $post_id, 'daw_mentions', false ) ) );
+	// One row per id (the meta box) or one row holding the whole list (REST,
+	// MCP). Reading rows only turned a stored list into a bare 1 (1.75.86).
+	$manual = array();
+	foreach ( (array) get_post_meta( $post_id, 'daw_mentions', false ) as $row ) {
+		$row    = is_string( $row ) && '[' === substr( ltrim( $row ), 0, 1 ) ? json_decode( $row, true ) : $row;
+		$manual = array_merge( $manual, is_array( $row ) ? $row : array( $row ) );
+	}
+	$manual = array_filter( array_map( 'intval', $manual ) );
 
 	if ( null === $content ) {
 		$post    = get_post( $post_id );

@@ -168,7 +168,7 @@ add_action( 'rest_api_init', static function () {
 				foreach ( $ids as $id ) {
 					$hits = array();
 					foreach ( $txt[ $id ] ?? array() as $t ) {
-						foreach ( ( function_exists( 'daw_voice_issues' ) ? daw_voice_issues( $t[1] ) : array() ) as $iss ) {
+						foreach ( ( function_exists( 'daw_voice_issues' ) ? daw_voice_issues( $t[1], $t[0], (string) ( $rows[ $id ]['title'] ?? '' ) ) : array() ) as $iss ) {
 							$issue  = $iss[1] . ' (madde ' . $iss[0] . ')';
 							$hits[] = $t[0] . ': ' . $issue;
 							$by_phrase[ $issue ] = ( $by_phrase[ $issue ] ?? 0 ) + 1;
@@ -215,6 +215,7 @@ add_action( 'rest_api_init', static function () {
 				$titles = $wpdb->get_results( "SELECT ID, post_title, post_type FROM {$wpdb->posts} WHERE ID IN ($in)", OBJECT_K ); // phpcs:ignore WordPress.DB
 				$since = defined( 'DAW_KW_FULL_SINCE' ) ? DAW_KW_FULL_SINCE : '2026-10-15';
 				$todo  = array();
+				$thin  = array();
 				$full  = 0;
 				foreach ( $ids as $id ) {
 					$x    = $m[ $id ] ?? array();
@@ -230,6 +231,32 @@ add_action( 'rest_api_init', static function () {
 					}
 					if ( $ok ) {
 						$full++;
+						// 1.75.86: a researched list can still be thin (seeded with the
+						// legal name only, a stage name never tried). Fewer than ten
+						// target patterns is listed for a second seed.
+						$kw0 = maybe_unserialize( $x['_daw_kw'] ?? '' );
+						$kw0 = is_string( $kw0 ) ? json_decode( $kw0, true ) : $kw0;
+						$tg  = 0;
+						$tk  = '';
+						$tv  = 0;
+						foreach ( is_array( $kw0 ) ? $kw0 : array() as $k ) {
+							if ( is_array( $k ) && empty( $k['x'] ) && empty( $k['n'] ) && (int) ( $k['vol'] ?? 0 ) > 0 ) {
+								$tg++;
+								if ( (int) $k['vol'] > $tv ) {
+									$tv = (int) $k['vol'];
+									$tk = (string) ( $k['kw'] ?? '' );
+								}
+							}
+						}
+						if ( $tg < 10 ) {
+							$thin[] = array(
+								'id'    => $id,
+								'title' => isset( $titles[ $id ] ) ? (string) $titles[ $id ]->post_title : '',
+								'n'     => $tg,
+								'kw'    => $tk,
+								'vol'   => $tv,
+							);
+						}
 						continue;
 					}
 					$kw = maybe_unserialize( $x['_daw_kw'] ?? '' );
@@ -254,7 +281,7 @@ add_action( 'rest_api_init', static function () {
 				}
 				usort( $todo, static fn( $a, $b ) => array( $b['vol'], $b['views'] ) <=> array( $a['vol'], $a['views'] ) );
 				$n = max( 0, (int) ( $r->get_param( 'n' ) ?? 200 ) );
-				return daw_rb_nocache( array( 'total' => count( $ids ), 'full' => $full, 'todo' => count( $todo ), 'no_list' => count( array_filter( $todo, static fn( $t ) => 0 === $t['vol'] ) ), 'rows' => array_slice( $todo, 0, $n ) ) );
+				return daw_rb_nocache( array( 'total' => count( $ids ), 'full' => $full, 'todo' => count( $todo ), 'no_list' => count( array_filter( $todo, static fn( $t ) => 0 === $t['vol'] ) ), 'rows' => array_slice( $todo, 0, $n ), 'thin' => count( $thin ), 'thin_rows' => $r->get_param( 'thin' ) ? $thin : array() ) );
 			},
 		)
 	);

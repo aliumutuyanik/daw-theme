@@ -125,11 +125,55 @@ function daw_strip_watermarks( $s ) {
 }
 
 /**
+ * Fields that hold names, not our prose: episode, track, award and source
+ * titles. Keys and their labels, so both the audit and aiscan can ask.
+ */
+function daw_voice_name_fields() {
+	return array(
+		'daw_ep_title', 'daw_ost_track', 'daw_ost_artist', 'daw_aw_category', 'daw_aw_body', 'daw_paw_category', 'daw_paw_body',
+		'daw_paw_work', 'daw_mus_title', 'daw_guide_source_name', 'daw_native_title', 'daw_also_known_as', 'daw_title_section_title',
+		'Episode title', 'Track', 'Artist', 'Category', 'Ceremony', 'For which work', 'Track or appearance', 'Source',
+		'Native title', 'Also known as',
+	);
+}
+
+/** True when the field holds names (madde 75-77 do not apply). */
+function daw_voice_is_name_field( $field ) {
+	$field = trim( preg_replace( '/:.*$/', '', (string) $field ) );
+	return in_array( $field, daw_voice_name_fields(), true );
+}
+
+/**
+ * A word-list hit counts only when it is our own wording. A capitalised hit
+ * inside a sentence is part of a name ("Captivating the King", "Jodie Foster",
+ * "Unforgettable Love"), so it is skipped; a hit at a sentence start is not.
+ */
+function daw_voice_word_hit( $w, $own ) {
+	if ( ! preg_match_all( '/(?<![\p{L}])' . preg_quote( $w, '/' ) . '(?![\p{L}])/iu', $own, $m, PREG_OFFSET_CAPTURE ) ) {
+		return false;
+	}
+	foreach ( $m[0] as $hit ) {
+		list( $txt, $pos ) = $hit;
+		if ( ! preg_match( '/^\p{Lu}/u', $txt ) ) {
+			return true;
+		}
+		$before = rtrim( substr( $own, 0, $pos ) );
+		if ( '' === $before || preg_match( '/[.!?:]["\x{201D}\')]?$/u', $before ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Per-text issues for madde 75, 76, 77, 79, 80 and the fixed part of 78.
  *
+ * @param string $s     Text.
+ * @param string $field Field key or label; name fields skip 75-77.
+ * @param string $title Record title; a listed word inside it is the name.
  * @return array List of [madde, note].
  */
-function daw_voice_issues( $s ) {
+function daw_voice_issues( $s, $field = '', $title = '' ) {
 	$s = (string) $s;
 	if ( '' === trim( $s ) || preg_match( '#^https?://\S+$#i', trim( $s ) ) ) {
 		return array();
@@ -138,17 +182,19 @@ function daw_voice_issues( $s ) {
 	$plain = html_entity_decode( wp_strip_all_tags( $s ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 	$own   = daw_voice_unquote( $plain );
 	$low   = ' ' . strtolower( $own ) . ' ';
-	foreach ( daw_voice_cliches() as $w ) {
-		if ( preg_match( '/(?<![a-z])' . preg_quote( $w, '/' ) . '(?![a-z])/', $low ) ) {
+	$names = '' !== $field && daw_voice_is_name_field( $field );
+	$tlow  = strtolower( (string) $title );
+	foreach ( $names ? array() : daw_voice_cliches() as $w ) {
+		if ( ( '' === $tlow || false === strpos( $tlow, $w ) ) && daw_voice_word_hit( $w, $own ) ) {
 			$out[] = array( '75', 'klişe: "' . $w . '"' );
 		}
 	}
-	foreach ( daw_voice_ai_vocab() as $w ) {
-		if ( preg_match( '/(?<![a-z])' . preg_quote( $w, '/' ) . '(?![a-z])/', $low ) ) {
+	foreach ( $names ? array() : daw_voice_ai_vocab() as $w ) {
+		if ( ( '' === $tlow || false === strpos( $tlow, $w ) ) && daw_voice_word_hit( $w, $own ) ) {
 			$out[] = array( '76', 'AI kelimesi: "' . $w . '"' );
 		}
 	}
-	foreach ( daw_voice_shapes() as $re => $name ) {
+	foreach ( $names ? array() : daw_voice_shapes() as $re => $name ) {
 		if ( preg_match( $re, $own ) ) {
 			$out[] = array( '77', 'AI kalıbı: ' . $name );
 		}
@@ -321,7 +367,7 @@ function daw_voice_rules( $post_id, array $texts, $group = '' ) {
 		$texts[] = array( 'Metin', (string) get_post_field( 'post_content', $post_id ) );
 	}
 	foreach ( $texts as $t ) {
-		foreach ( daw_voice_issues( (string) $t[1] ) as $iss ) {
+		foreach ( daw_voice_issues( (string) $t[1], (string) ( $t[2] ?? $t[0] ), get_the_title( $post_id ) ) as $iss ) {
 			$k = $iss[0] . '|' . $t[0] . '|' . $iss[1];
 			if ( isset( $seen[ $k ] ) ) {
 				continue;

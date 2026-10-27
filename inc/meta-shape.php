@@ -115,12 +115,33 @@ function daw_meta_json_store( $meta_key, $meta_value ) {
 	return is_array( $d ) ? $d : null;
 }
 
+/**
+ * Date fields hold a Unix timestamp (UTC midnight); the theme, schema, age
+ * and browse filters read them with (int). A writer that stores "1989-07-26"
+ * gave (int) 1989, the page read 1 January 1970 and the portrait match by
+ * birth date failed (Jeon Yeo Been, Hong Ki Joon, 27 Oct 2026). Such a string
+ * is converted before it is stored. Returns null when nothing to do.
+ */
+function daw_meta_date_store( $meta_key, $meta_value ) {
+	if ( ! in_array( (string) $meta_key, array( 'daw_born', 'daw_died', 'daw_aired_start', 'daw_aired_end' ), true ) || ! is_string( $meta_value ) ) {
+		return null;
+	}
+	if ( ! preg_match( '/^\s*(\d{4})-(\d{2})-(\d{2})(?:[T ][\d:.]+Z?)?\s*$/', $meta_value, $m ) || ! checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) {
+		return null;
+	}
+	return (string) gmmktime( 0, 0, 0, (int) $m[2], (int) $m[3], (int) $m[1] );
+}
+
 /* ---------------------------------------------------------- write guard --- */
 
 add_filter( 'update_post_metadata', 'daw_meta_shape_guard_update', 5, 5 );
 add_filter( 'add_post_metadata', 'daw_meta_shape_guard_add', 5, 5 );
 
 function daw_meta_shape_guard_update( $check, $object_id, $meta_key, $meta_value, $prev_value ) {
+	$date = daw_meta_date_store( $meta_key, $meta_value );
+	if ( null === $check && null !== $date ) {
+		return update_metadata( 'post', $object_id, $meta_key, $date, $prev_value );
+	}
 	$decoded = daw_meta_json_store( $meta_key, $meta_value );
 	if ( null === $check && null !== $decoded ) {
 		return update_metadata( 'post', $object_id, $meta_key, $decoded, $prev_value );
@@ -146,6 +167,10 @@ function daw_meta_shape_guard_update( $check, $object_id, $meta_key, $meta_value
 }
 
 function daw_meta_shape_guard_add( $check, $object_id, $meta_key, $meta_value, $unique ) {
+	$date = daw_meta_date_store( $meta_key, $meta_value );
+	if ( null === $check && null !== $date ) {
+		return add_metadata( 'post', $object_id, $meta_key, $date, $unique );
+	}
 	$decoded = daw_meta_json_store( $meta_key, $meta_value );
 	if ( null === $check && null !== $decoded ) {
 		return add_metadata( 'post', $object_id, $meta_key, $decoded, $unique );
@@ -186,6 +211,12 @@ function daw_meta_shape_repair( $post_id ) {
 			update_post_meta( $post_id, $store, $dec );
 		}
 	}
+	foreach ( array( 'daw_born', 'daw_died', 'daw_aired_start', 'daw_aired_end' ) as $dk ) {
+		$dv = get_post_meta( $post_id, $dk, true );
+		if ( null !== daw_meta_date_store( $dk, $dv ) ) {
+			update_post_meta( $post_id, $dk, $dv ); // the guard converts it
+		}
+	}
 	$all     = get_post_meta( $post_id );
 	foreach ( daw_scalar_fields() as $key => $unused ) {
 		if ( empty( $all[ $key ] ) ) {
@@ -220,7 +251,7 @@ function daw_meta_shape_repair( $post_id ) {
 
 /* ------------------------------------------------------ one-time sweep --- */
 
-const DAW_META_SHAPE_SWEEP = 'daw_meta_shape_sweep';
+const DAW_META_SHAPE_SWEEP = 'daw_meta_shape_sweep_2'; // _2: text dates (1.75.86)
 
 add_action( 'init', 'daw_meta_shape_sweep_schedule', 30 );
 add_action( 'daw_meta_shape_sweep_run', 'daw_meta_shape_sweep_run' );
