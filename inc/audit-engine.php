@@ -757,7 +757,12 @@ function daw_ae_audit( $post_id ) {
 	if ( function_exists( 'daw_tmdb_ref' ) && in_array( $group, array( 'title', 'show' ), true ) ) {
 		$ref = daw_tmdb_ref( $post_id );
 		if ( $ref && ( ( 'movie' === $ref['kind'] && 'film' !== $type ) || ( 'tv' === $ref['kind'] && 'film' === $type ) ) ) {
-			$rules[] = array( 'Tür ve TMDB (K21)', $type . ' / ' . $ref['kind'], 'no', 'Kaydın türü TMDB kaydının türüyle uyuşmuyor' );
+			// A one-off TV special that TMDB files as a movie is real; once a
+			// source settles it the record carries `_daw_ok['tmdb_kind']`.
+			$okk     = (array) get_post_meta( $post_id, '_daw_ok', true );
+			$rules[] = isset( $okk['tmdb_kind'] )
+				? array( 'Tür ve TMDB (K21)', $type . ' / ' . $ref['kind'], 'ok', 'Tür farkı doğrulandı: ' . ( is_string( $okk['tmdb_kind'] ) ? $okk['tmdb_kind'] : '' ) )
+				: array( 'Tür ve TMDB (K21)', $type . ' / ' . $ref['kind'], 'no', 'Kaydın türü TMDB kaydının türüyle uyuşmuyor; tek bölümlük TV özel yapımıysa kaynakla _daw_ok[\'tmdb_kind\'] yazılır' );
 		}
 	}
 
