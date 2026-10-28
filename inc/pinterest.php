@@ -206,6 +206,7 @@ function daw_pin_readable( $keys ) {
 	$keys   = (array) $keys;
 	$keys[] = 'daw_pin_key';
 	$keys[] = 'daw_pin_state';
+	$keys[] = 'daw_pin_dupes';
 	return array_values( array_unique( $keys ) );
 }
 
@@ -394,7 +395,10 @@ function daw_pin_second_candidates() {
 			continue;
 		}
 		$photo = daw_pin_photo( $id );
-		if ( ! $photo || 'tmdb' !== $photo['kind'] || md5( 'tmdb:' . substr( $photo['id'], 5 ) ) !== $ok[0]['img'] ) {
+		// The first pin was a poster: ours (the TMDB picture) or one of the
+		// account's pins from before this system, adopted below.
+		$was_poster = 0 === strpos( (string) $ok[0]['img'], 'old:' ) || ( $photo && 'tmdb' === $photo['kind'] && md5( 'tmdb:' . substr( $photo['id'], 5 ) ) === $ok[0]['img'] );
+		if ( ! $was_poster ) {
 			continue;
 		}
 		if ( '' === daw_pin_board_id( daw_pin_board_key( $id ) ) ) {
@@ -963,6 +967,7 @@ function daw_pin_routes() {
 	register_rest_route( 'daw/v1', '/pin/next', array( 'methods' => 'GET', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_next' ) );
 	register_rest_route( 'daw/v1', '/pin/done', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_done' ) );
 	register_rest_route( 'daw/v1', '/pin/status', array( 'methods' => 'GET', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_status' ) );
+	register_rest_route( 'daw/v1', '/pin/adopt', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_adopt' ) );
 }
 
 function daw_pin_rest_next( WP_REST_Request $r ) {
@@ -1004,6 +1009,75 @@ function daw_pin_rest_done( WP_REST_Request $r ) {
 	}
 	daw_pin_record( $id, $pin );
 	return array( 'ok' => true, 'id' => $id, 'pin_id' => $pin );
+}
+
+/**
+ * Adopt a pin the account made before this system (2024-2025).
+ *
+ * Those pins are posters that already link to the site, with titles like
+ * "Coffee Prince - Asian World", descriptions like "Gong Yoo 52" and no alt
+ * text; several pages were pinned twice. Make walks the old boards and posts
+ * each pin here. The page it links to gets the pin in its log, so this
+ * system never pins the same poster to it again (its second pin, the card,
+ * follows 14 days on), and the answer carries the title, description, alt
+ * text and link Make writes back into the pin. A second old pin for a page
+ * that already has one is answered "duplicate" and listed for the owner to
+ * delete by hand.
+ */
+function daw_pin_rest_adopt( WP_REST_Request $r ) {
+	$p    = $r->get_json_params();
+	$pin  = preg_replace( '/[^0-9]/', '', (string) ( $p['pin_id'] ?? '' ) );
+	$link = esc_url_raw( (string) ( $p['link'] ?? '' ) );
+	if ( '' === $pin ) {
+		return new WP_Error( 'daw_pin_bad', 'pin_id is required.', array( 'status' => 400 ) );
+	}
+	$id = '' !== $link ? url_to_postid( strtok( $link, '?#' ) ) : 0;
+	if ( ! $id || 'post' !== get_post_type( $id ) || 'publish' !== get_post_status( $id ) ) {
+		return array( 'action' => 'none', 'why' => 'link is not a published record', 'pin_id' => $pin );
+	}
+
+	$log  = get_post_meta( $id, DAW_PIN_LOG, true );
+	$log  = is_array( $log ) ? $log : array();
+	$mine = false;
+	foreach ( $log as $e ) {
+		if ( (string) ( $e['pin'] ?? '' ) === $pin ) {
+			$mine = true;
+		}
+	}
+	if ( ! $mine ) {
+		foreach ( $log as $e ) {
+			if ( 'atlandi' !== ( $e['pin'] ?? '' ) ) {
+				$d = get_option( 'daw_pin_dupes', array() );
+				$d = is_array( $d ) ? $d : array();
+				$d[ $pin ] = array( 'post' => $id, 'keep' => (string) $e['pin'] );
+				update_option( 'daw_pin_dupes', $d, false );
+				return array( 'action' => 'duplicate', 'pin_id' => $pin, 'post' => $id, 'keep' => (string) $e['pin'] );
+			}
+		}
+		$at    = strtotime( (string) ( $p['created_at'] ?? '' ) . ' UTC' );
+		$log[] = array(
+			'pin'   => $pin,
+			'board' => 'old',
+			'img'   => 'old:' . $pin,
+			'at'    => $at ? $at : time(),
+		);
+		update_post_meta( $id, DAW_PIN_LOG, $log );
+	}
+
+	$d    = daw_pin_text( $id );
+	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $id ) : '';
+	$alt  = 'person' === $type
+		? $d['name'] . ', ' . $d['kind']
+		: 'Poster of ' . $d['name'] . ( '' !== $d['year'] ? ' (' . $d['year'] . ')' : '' ) . ( '' !== $d['kind'] ? ', ' . $d['kind'] : '' );
+	return array(
+		'action'      => 'update',
+		'pin_id'      => $pin,
+		'post'        => $id,
+		'title'       => $d['title'],
+		'description' => $d['desc'],
+		'alt_text'    => daw_pin_cut( daw_pin_plain( $alt ), 500 ),
+		'link'        => $d['link'],
+	);
 }
 
 function daw_pin_log_count( $id ) {
@@ -1120,7 +1194,7 @@ function daw_pin_box_html( $post ) {
 			if ( 'atlandi' === $e['pin'] ) {
 				printf( '<li>%s · Pinterest reddetti</li>', esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ) );
 			} else {
-				printf( '<li><a href="%s" target="_blank" rel="noopener">%s</a> · %s</li>', esc_url( 'https://www.pinterest.com/pin/' . rawurlencode( $e['pin'] ) . '/' ), esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ), esc_html( daw_pin_boards()[ $e['board'] ]['name'] ?? $e['board'] ) );
+				printf( '<li><a href="%s" target="_blank" rel="noopener">%s</a> · %s</li>', esc_url( 'https://www.pinterest.com/pin/' . rawurlencode( $e['pin'] ) . '/' ), esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ), esc_html( 'old' === $e['board'] ? 'eski pin' : ( daw_pin_boards()[ $e['board'] ]['name'] ?? $e['board'] ) ) );
 			}
 		}
 		echo '</ul><p style="color:#646970;margin:0 0 8px">Bu kayıt bir daha sıraya girmez.</p>';
@@ -1279,6 +1353,15 @@ function daw_pin_page() {
 			);
 		}
 		echo '</tbody></table>';
+	}
+
+	$dupes = get_option( 'daw_pin_dupes', array() );
+	if ( is_array( $dupes ) && $dupes ) {
+		echo '<h2>Silinecek eski çift pinler</h2><p class="description">Aynı sayfaya ikinci kez basılmış eski pinler. Pinterest\'te tek tek silin; aynı sayfanın diğer pini kalır.</p><ul>';
+		foreach ( $dupes as $pin => $e ) {
+			printf( '<li><a href="%s" target="_blank" rel="noopener">%s</a> · %s</li>', esc_url( 'https://www.pinterest.com/pin/' . rawurlencode( (string) $pin ) . '/' ), esc_html( (string) $pin ), esc_html( daw_pin_plain( get_the_title( (int) $e['post'] ) ) ) );
+		}
+		echo '</ul>';
 	}
 
 	printf( '<h2>Make</h2><p>Anahtar (<code>X-DAW-PIN-KEY</code>): <code>%s</code></p>', esc_html( daw_pin_key() ) );
