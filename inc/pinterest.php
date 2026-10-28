@@ -65,57 +65,146 @@ const DAW_PIN_REV  = '2'; // bump when the card layout changes
 /* ================================================================ boards === */
 
 /**
- * The boards, by key. Board names are the searched phrases (Ubersuggest, US,
- * 28 Oct 2026): "korean drama netflix" 135k a month, "romantic comedy korean
- * drama" 18k, "horror korean movies" 12k, "korean actors" 15k, "korean
- * actresses" 8k, "korean food" 246k. 'kind' is the phrase a pin's title uses
- * on that board. Ids are the boards made on 28 October 2026 on
- * pinterest.com/discoverasianworld; "Korean Actors" is the account's old board,
- * kept with its pins and given a description.
+ * The countries the site covers: dw_country slug => key prefix, the adjective,
+ * the place name and the searched short forms. Their order is the menu's.
+ */
+function daw_pin_countries() {
+	return array(
+		'south-korea' => array( 'k', 'Korean', 'Korea', 'K-Drama', 'K-Pop' ),
+		'japan'       => array( 'j', 'Japanese', 'Japan', 'J-Drama', 'J-Pop' ),
+		'taiwan'      => array( 'tw', 'Taiwanese', 'Taiwan', 'Taiwanese Drama', 'Taiwanese Pop' ),
+		'china'       => array( 'c', 'Chinese', 'China', 'C-Drama', 'C-Pop' ),
+		'thailand'    => array( 'th', 'Thai', 'Thailand', 'Thai Drama', 'T-Pop' ),
+		'singapore'   => array( 'sg', 'Singaporean', 'Singapore', 'Singaporean Drama', 'Singaporean Pop' ),
+		'philippines' => array( 'ph', 'Filipino', 'Philippines', 'Filipino Drama', 'P-Pop' ),
+		'hong-kong'   => array( 'hk', 'Hong Kong', 'Hong Kong', 'Hong Kong Drama', 'Cantopop' ),
+	);
+}
+
+/**
+ * The topics, as the site's menu lists them under each country (Korean
+ * Drama, Korean Movie, Korean Actors, Korean Actress, Korean Pop, Foods &
+ * Drinks, Trends & News, Travel, Test, Culture, Myths) plus variety shows.
+ * One topic, one board: dramas and movies, actors and actresses, culture and
+ * travel are searched apart and never share a board.
+ */
+function daw_pin_topics() {
+	return array( 'drama', 'movie', 'actor', 'actress', 'pop', 'food', 'news', 'travel', 'test', 'culture', 'myth', 'variety' );
+}
+
+/** A topic's board name and description for a country. */
+function daw_pin_topic_board( $topic, $c ) {
+	list( , $adj, $place, $dr, $pop ) = $c;
+	$names = array(
+		'drama'   => array( ( false !== strpos( $dr, '-' ) ? $dr . 's: ' : '' ) . $adj . ' Dramas to Watch', $adj . ' drama recommendations with cast, story, episodes and where to watch.' ),
+		'movie'   => array( $adj . ' Movies to Watch', $adj . ' movie recommendations with cast, story and where to watch.' ),
+		'actor'   => array( $adj . ' Actors', $adj . ' actors: profiles, dramas, movies and new roles.' ),
+		'actress' => array( $adj . ' Actresses', $adj . ' actresses: profiles, dramas, movies and new roles.' ),
+		'pop'     => array( $pop, $pop . ' groups and singers: members, songs and profiles.' ),
+		'food'    => array( $adj . ' Food and Drinks', $adj . ' food and drinks: dishes, recipes, snacks and what to order, as seen in its dramas.' ),
+		'news'    => array( $adj . ' Entertainment News', $adj . ' drama, movie and star news: casting, premieres, ratings and trends.' ),
+		'travel'  => array( $place . ' Travel', $place . ' travel: drama filming locations, places to visit and tips.' ),
+		'test'    => array( $adj . ' Drama Quizzes', $adj . ' drama and culture quizzes and tests.' ),
+		'culture' => array( $adj . ' Culture', $adj . ' culture explained: customs, holidays, language and everyday life seen in its dramas.' ),
+		'myth'    => array( $adj . ' Myths and Legends', $adj . ' myths, legends and folklore creatures, and the dramas that use them.' ),
+		'variety' => array( $adj . ' Variety Shows', $adj . ' variety and reality shows: cast, format and where to watch.' ),
+	);
+	return $names[ $topic ];
+}
+
+/**
+ * Every board, by key: country prefix + topic ("j_movie"), Korean genre and
+ * platform boards, and the Korean boards made before this scheme, which keep
+ * their keys because pin logs name them.
+ *
+ * 'id' is the Pinterest board, '' while it does not exist. A board is made
+ * by the drip (see daw_pin_board_wanted) the first time a record is ready
+ * for it, so no board sits empty and a new category gets its board as soon
+ * as its first record is finished. Ids made that way are kept in the
+ * daw_pin_board_ids option. 'also' marks a board a pin is saved to, never
+ * its first board. 'kind' is the phrase a pin's title uses on that board.
  */
 function daw_pin_boards() {
-	$boards = array(
-		'kdrama'   => array( 'name' => 'K-Drama Recommendations', 'id' => '988118043183707540' ),
-		'romance'  => array( 'name' => 'Romantic K-Dramas', 'id' => '988118043183707557', 'kind' => 'Romantic K-Drama' ),
-		'thriller' => array( 'name' => 'Thriller and Mystery K-Dramas', 'id' => '988118043183707558', 'kind' => 'Thriller K-Drama' ),
-		'sageuk'   => array( 'name' => 'Historical K-Dramas', 'id' => '988118043183707559', 'kind' => 'Historical K-Drama' ),
-		'fantasy'  => array( 'name' => 'Fantasy K-Dramas', 'id' => '988118043183707560', 'kind' => 'Fantasy K-Drama' ),
-		'netflix'  => array( 'name' => 'Netflix K-Dramas to Watch', 'id' => '988118043183707561' ),
-		'khorror'  => array( 'name' => 'Korean Horror and Thriller Movies', 'id' => '988118043183707562', 'kind' => 'Korean Thriller Movie' ),
-		'kmovie'   => array( 'name' => 'Korean Movies to Watch', 'id' => '988118043183707541' ),
-		'actor'    => array( 'name' => 'Korean Actors', 'id' => '988118043182946887' ),
-		'actress'  => array( 'name' => 'Korean Actresses', 'id' => '988118043183707542' ),
-		'kfood'    => array( 'name' => 'Korean Food and Recipes', 'id' => '988118043183707544' ),
-		'kculture' => array( 'name' => 'Korean Culture and Travel', 'id' => '988118043183707545' ),
-		'news'     => array( 'name' => 'K-Drama News', 'id' => '988118043183707546' ),
-		// One board per country, never one for "the rest of Asia": a C-drama
-		// fan searches C-dramas, not Thai ones. Each takes the country's
-		// dramas, movies and people. The China board was the old mixed
-		// "C-Drama, J-Drama and Thai Drama" board, renamed on 28 Oct 2026
-		// before a pin went to it; the others were made that day.
-		'china'    => array( 'name' => 'C-Dramas: Chinese Dramas to Watch', 'id' => '988118043183707543' ),
-		'japan'    => array( 'name' => 'J-Dramas and Japanese Movies', 'id' => '988118043183707638' ),
-		'thai'     => array( 'name' => 'Thai Dramas (Lakorn) to Watch', 'id' => '988118043183707639' ),
-		'taiwan'   => array( 'name' => 'Taiwanese Dramas to Watch', 'id' => '988118043183707640' ),
-		'hk'       => array( 'name' => 'Hong Kong Movies and TVB Dramas', 'id' => '988118043183707641' ),
-		'pinoy'    => array( 'name' => 'Filipino Dramas and Movies', 'id' => '988118043183707642' ),
-		'sg'       => array( 'name' => 'Singapore Dramas and Movies', 'id' => '988118043183707643' ),
-		// Boards a pin is also saved to, never a pin's first board. A board
-		// is made on Pinterest only once the Pinterest screen counts 15 or
-		// more records for it; an empty id means not made yet. All seven
-		// were made on 28 Oct 2026 (19 to 81 records each).
-		'nfmovie'  => array( 'name' => 'Korean Movies on Netflix', 'id' => '988118043183707580', 'also' => true ),
-		'viki'     => array( 'name' => 'K-Dramas on Viki', 'id' => '988118043183707574', 'also' => true ),
-		'prime'    => array( 'name' => 'K-Dramas on Prime Video', 'id' => '988118043183707578', 'also' => true ),
-		'medical'  => array( 'name' => 'Medical K-Dramas', 'id' => '988118043183707579', 'also' => true ),
-		'school'   => array( 'name' => 'School and Youth K-Dramas', 'id' => '988118043183707576', 'also' => true ),
-		'rommovie' => array( 'name' => 'Romantic Korean Movies', 'id' => '988118043183707577', 'also' => true ),
-		'action'   => array( 'name' => 'Korean Action Movies', 'id' => '988118043183707575', 'also' => true ),
+	$boards = array();
+	foreach ( daw_pin_countries() as $c ) {
+		foreach ( daw_pin_topics() as $t ) {
+			list( $name, $desc ) = daw_pin_topic_board( $t, $c );
+			$boards[ $c[0] . '_' . $t ] = array( 'name' => $name, 'desc' => $desc, 'id' => '' );
+		}
+	}
+
+	// Korean boards made on 28 Oct 2026 (names: Ubersuggest, US; "korean
+	// food" 246k a month, "korean actors" 15k, "korean actresses" 8k).
+	// "Korean Actors" is the account's old board, kept with its pins.
+	$made = array(
+		'kdrama'   => array( 'k_drama', 'K-Drama Recommendations', '988118043183707540' ),
+		'kmovie'   => array( 'k_movie', 'Korean Movies to Watch', '988118043183707541' ),
+		'actor'    => array( 'k_actor', 'Korean Actors', '988118043182946887' ),
+		'actress'  => array( 'k_actress', 'Korean Actresses', '988118043183707542' ),
+		'kfood'    => array( 'k_food', 'Korean Food and Drinks', '988118043183707544' ),
+		'kculture' => array( 'k_culture', 'Korean Culture', '988118043183707545' ),
+		'news'     => array( 'k_news', 'Korean Trends and News', '988118043183707546' ),
 	);
+	foreach ( $made as $key => $m ) {
+		$boards[ $key ] = array( 'name' => $m[1], 'desc' => $boards[ $m[0] ]['desc'], 'id' => $m[2] );
+		unset( $boards[ $m[0] ] );
+	}
+	// The country drama boards made on 28 Oct 2026.
+	foreach ( array(
+		'c_drama'  => '988118043183707543',
+		'j_drama'  => '988118043183707638',
+		'th_drama' => '988118043183707639',
+		'tw_drama' => '988118043183707640',
+		'hk_drama' => '988118043183707641',
+		'ph_drama' => '988118043183707642',
+		'sg_drama' => '988118043183707643',
+	) as $key => $id ) {
+		$boards[ $key ]['id'] = $id;
+	}
+	$boards['th_drama']['name'] = 'Thai Dramas (Lakorn) to Watch';
+	$boards['hk_drama']['name'] = 'Hong Kong TVB Dramas to Watch';
+	$boards['ph_drama']['name'] = 'Filipino Dramas (Teleserye) to Watch';
+
+	// Korean genre and platform boards: a K-drama or Korean movie goes first
+	// to its category board and is saved to these as well. One genre each.
+	$also = array(
+		'romance'   => array( 'Romantic K-Dramas', '988118043183707557', 'Romantic K-Drama' ),
+		'thriller'  => array( 'Thriller K-Dramas', '988118043183707558', 'Thriller K-Drama' ),
+		'mystery'   => array( 'Mystery K-Dramas', '', 'Mystery K-Drama' ),
+		'hdrama'    => array( 'Horror K-Dramas', '', 'Horror K-Drama' ),
+		'sageuk'    => array( 'Historical K-Dramas', '988118043183707559', 'Historical K-Drama' ),
+		'fantasy'   => array( 'Fantasy K-Dramas', '988118043183707560', 'Fantasy K-Drama' ),
+		'medical'   => array( 'Medical K-Dramas', '988118043183707579', 'Medical K-Drama' ),
+		'school'    => array( 'School K-Dramas', '988118043183707576', 'School K-Drama' ),
+		'netflix'   => array( 'Netflix K-Dramas to Watch', '988118043183707561', '' ),
+		'viki'      => array( 'K-Dramas on Viki', '988118043183707574', '' ),
+		'prime'     => array( 'K-Dramas on Prime Video', '988118043183707578', '' ),
+		'khorror'   => array( 'Korean Horror Movies', '988118043183707562', 'Korean Horror Movie' ),
+		'kthriller' => array( 'Korean Thriller Movies', '', 'Korean Thriller Movie' ),
+		'rommovie'  => array( 'Romantic Korean Movies', '988118043183707577', 'Romantic Korean Movie' ),
+		'action'    => array( 'Korean Action Movies', '988118043183707575', 'Korean Action Movie' ),
+		'nfmovie'   => array( 'Korean Movies on Netflix', '988118043183707580', '' ),
+	);
+	foreach ( $also as $key => $a ) {
+		$boards[ $key ] = array(
+			'name' => $a[0],
+			'desc' => '' !== $a[2] ? $a[0] . ': recommendations with cast, story and where to watch.' : $a[0] . ' with cast, story and where to watch.',
+			'id'   => $a[1],
+			'also' => true,
+		);
+	}
+
+	// Boards the drip has made since.
+	$ids = daw_pin_opt( 'daw_pin_board_ids', array() );
+	foreach ( is_array( $ids ) ? $ids : array() as $key => $id ) {
+		if ( isset( $boards[ $key ] ) && '' === $boards[ $key ]['id'] ) {
+			$boards[ $key ]['id'] = (string) $id;
+		}
+	}
 	return apply_filters( 'daw_pin_boards', $boards );
 }
 
-/** Is the record about South Korea (or about nowhere in particular)? */
+/** The record's dw_country slug, '' when it has none. */
 function daw_pin_country( $post_id ) {
 	$terms = get_the_terms( $post_id, 'dw_country' );
 	if ( ! $terms || is_wp_error( $terms ) ) {
@@ -124,61 +213,50 @@ function daw_pin_country( $post_id ) {
 	return $terms[0]->slug;
 }
 
-/** Country term slug => the country's board key. */
-function daw_pin_country_boards() {
-	return array(
-		'china'       => 'china',
-		'japan'       => 'japan',
-		'thailand'    => 'thai',
-		'taiwan'      => 'taiwan',
-		'hong-kong'   => 'hk',
-		'philippines' => 'pinoy',
-		'singapore'   => 'sg',
+/** The record's topic, as the menu names it. */
+function daw_pin_topic( $post_id ) {
+	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
+	$map  = array(
+		'drama'   => 'drama',
+		'film'    => 'movie',
+		'group'   => 'pop',
+		'food'    => 'food',
+		'news'    => 'news',
+		'travel'  => 'travel',
+		'quiz'    => 'test',
+		'culture' => 'culture',
+		'feature' => 'culture',
+		'myth'    => 'myth',
+		'variety' => 'variety',
 	);
+	if ( 'person' === $type ) {
+		return 'female' === strtolower( (string) get_post_meta( $post_id, 'daw_gender', true ) ) ? 'actress' : 'actor';
+	}
+	return $map[ $type ] ?? '';
 }
 
 /** The board key for a record, or '' if it is not pinned at all. */
 function daw_pin_board_key( $post_id ) {
-	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
-	$c    = daw_pin_country( $post_id );
-
-	// A record of another country goes on that country's board, whatever it
-	// is; news stays on the news board. A country with no board yet is not
-	// pinned rather than put on a Korean board.
-	if ( '' !== $c && 'south-korea' !== $c && '' !== $type && 'news' !== $type ) {
-		return daw_pin_country_boards()[ $c ] ?? '';
+	$topic = daw_pin_topic( $post_id );
+	$c     = daw_pin_country( $post_id );
+	$c     = '' === $c ? 'south-korea' : $c;
+	$all   = daw_pin_countries();
+	if ( '' === $topic || ! isset( $all[ $c ] ) ) {
+		return '';
 	}
-
-	switch ( $type ) {
-		case 'drama':
-			// The most particular genre board wins, so the romance board
-			// (318 records carry Romance) does not swallow the others.
-			$g = daw_pin_genre_slugs( $post_id );
-			foreach ( array(
-				'sageuk'   => array( 'historical', 'period-drama' ),
-				'fantasy'  => array( 'fantasy', 'supernatural', 'time-travel' ),
-				'thriller' => array( 'thriller', 'mystery', 'crime', 'psychological', 'horror' ),
-				'romance'  => array( 'romance', 'romantic-comedy' ),
-			) as $board => $slugs ) {
-				if ( array_intersect( $slugs, $g ) ) {
-					return $board;
-				}
-			}
-			return daw_pin_on_netflix( $post_id ) ? 'netflix' : 'kdrama';
-		case 'film':
-			return array_intersect( array( 'horror', 'thriller', 'crime', 'mystery', 'zombie' ), daw_pin_genre_slugs( $post_id ) ) ? 'khorror' : 'kmovie';
-		case 'person':
-			return 'female' === strtolower( (string) get_post_meta( $post_id, 'daw_gender', true ) ) ? 'actress' : 'actor';
-		case 'news':
-			return 'news';
-		case 'food':
-			return 'kfood';
-		case '':
-			return '';
-		default:
-			// variety, group, culture, myth, travel, quiz, lists.
-			return 'kculture';
-	}
+	$key = $all[ $c ][0] . '_' . $topic;
+	$old = array_flip(
+		array(
+			'kdrama'   => 'k_drama',
+			'kmovie'   => 'k_movie',
+			'actor'    => 'k_actor',
+			'actress'  => 'k_actress',
+			'kfood'    => 'k_food',
+			'kculture' => 'k_culture',
+			'news'     => 'k_news',
+		)
+	);
+	return $old[ $key ] ?? $key;
 }
 
 function daw_pin_genre_slugs( $post_id ) {
@@ -211,50 +289,45 @@ function daw_pin_streams_on( $post_id, $needle ) {
 }
 
 /**
- * Other boards the record belongs on, best first, its first board left out.
- * The pin is saved to at most two of them, days apart (see daw_pin_save_due).
+ * Korean genre and platform boards the record is also saved to, best first.
+ * The pin is saved to at most three of them, days apart (daw_pin_save_due).
  *
  * @return string[] board keys, made or not
  */
 function daw_pin_also( $post_id ) {
-	$type    = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
-	$c       = daw_pin_country( $post_id );
-	$primary = daw_pin_board_key( $post_id );
+	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
+	$c    = daw_pin_country( $post_id );
 	if ( ( '' !== $c && 'south-korea' !== $c ) || ! in_array( $type, array( 'drama', 'film' ), true ) ) {
 		return array();
 	}
-	$g    = daw_pin_genre_slugs( $post_id );
-	$has  = static function ( $slugs ) use ( $g ) {
+	$g   = daw_pin_genre_slugs( $post_id );
+	$has = static function ( $slugs ) use ( $g ) {
 		return (bool) array_intersect( $slugs, $g );
 	};
-	$want = array();
 	if ( 'drama' === $type ) {
 		$want = array(
 			'netflix'  => daw_pin_on_netflix( $post_id ),
-			'romance'  => $has( array( 'romance', 'romantic-comedy' ) ),
-			'thriller' => $has( array( 'thriller', 'mystery', 'crime', 'psychological', 'horror' ) ),
-			'fantasy'  => $has( array( 'fantasy', 'supernatural', 'time-travel' ) ),
 			'sageuk'   => $has( array( 'historical', 'period-drama' ) ),
-			'viki'     => daw_pin_streams_on( $post_id, 'viki' ),
-			'prime'    => daw_pin_streams_on( $post_id, 'prime' ),
+			'fantasy'  => $has( array( 'fantasy', 'supernatural', 'time-travel' ) ),
+			'hdrama'   => $has( array( 'horror' ) ),
+			'thriller' => $has( array( 'thriller', 'crime', 'psychological' ) ),
+			'mystery'  => $has( array( 'mystery' ) ),
 			'medical'  => $has( array( 'medical' ) ),
 			'school'   => $has( array( 'school', 'youth', 'coming-of-age' ) ),
+			'romance'  => $has( array( 'romance', 'romantic-comedy' ) ),
+			'viki'     => daw_pin_streams_on( $post_id, 'viki' ),
+			'prime'    => daw_pin_streams_on( $post_id, 'prime' ),
 		);
 	} else {
 		$want = array(
-			'nfmovie'  => daw_pin_on_netflix( $post_id ),
-			'khorror'  => $has( array( 'horror', 'thriller', 'crime', 'mystery', 'zombie' ) ),
-			'rommovie' => $has( array( 'romance', 'romantic-comedy', 'melodrama' ) ),
-			'action'   => $has( array( 'action', 'martial-arts' ) ),
+			'nfmovie'   => daw_pin_on_netflix( $post_id ),
+			'khorror'   => $has( array( 'horror', 'zombie' ) ),
+			'kthriller' => $has( array( 'thriller', 'crime', 'mystery' ) ),
+			'action'    => $has( array( 'action', 'martial-arts' ) ),
+			'rommovie'  => $has( array( 'romance', 'romantic-comedy', 'melodrama' ) ),
 		);
 	}
-	$out = array();
-	foreach ( $want as $k => $yes ) {
-		if ( $yes && $k !== $primary ) {
-			$out[] = $k;
-		}
-	}
-	return $out;
+	return array_keys( array_filter( $want ) );
 }
 
 function daw_pin_board_id( $key ) {
@@ -289,6 +362,14 @@ function daw_pin_settings() {
 		$s['rv']   = 2;
 		update_option( 'daw_pin', $s, false );
 	}
+	// More boards to save to since 1.75.95: 4 saves a day becomes 6.
+	if ( is_array( $s ) && $s && (int) ( $s['rv'] ?? 0 ) < 3 ) {
+		if ( 4 === (int) ( $s['saves'] ?? 4 ) ) {
+			$s['saves'] = 6;
+		}
+		$s['rv'] = 3;
+		update_option( 'daw_pin', $s, false );
+	}
 	return wp_parse_args(
 		is_array( $s ) ? $s : array(),
 		array(
@@ -299,7 +380,7 @@ function daw_pin_settings() {
 			'ramp'  => '6,10,15', // a day: weeks 1-2, weeks 3-4, after
 			'start' => '',       // Y-m-d of the first pin, set by the first pin
 			'look'  => 'direct', // direct: the TMDB picture as it is | card: drawn card
-			'saves' => 4,        // saves of existing pins to more boards, a day
+			'saves' => 6,        // saves of existing pins to more boards, a day
 		)
 	);
 }
@@ -653,7 +734,7 @@ function daw_pin_kind( $post_id ) {
 		case 'food':
 			return $adj . ' Food';
 		case 'travel':
-			return 'Korean' === $adj ? 'Korea Travel' : $adj . ' Travel';
+			return ( daw_pin_countries()[ '' === $c ? 'south-korea' : $c ][2] ?? 'Asia' ) . ' Travel';
 		case 'myth':
 			return $adj . ' Myth';
 		case 'culture':
@@ -743,21 +824,23 @@ function daw_pin_text( $post_id ) {
 	if ( 'person' === $type && 'actress' === daw_pin_board_key( $post_id ) ) {
 		$hash[1] = 'koreanactress';
 	}
-	$country_tags = array(
-		'china'  => array( 'cdrama', 'chinesedrama', 'cdramarecommendations' ),
-		'japan'  => array( 'jdrama', 'japanesedrama', 'japanesemovie' ),
-		'thai'   => array( 'thaidrama', 'lakorn', 'thailakorn' ),
-		'taiwan' => array( 'taiwanesedrama', 'twdrama', 'taiwan' ),
-		'hk'     => array( 'hongkongmovie', 'tvbdrama', 'hongkongcinema' ),
-		'pinoy'  => array( 'pinoydrama', 'teleserye', 'filipinomovie' ),
-		'sg'     => array( 'singaporedrama', 'singapore', 'mediacorp' ),
-	);
-	$bkey = daw_pin_board_key( $post_id );
-	if ( isset( $country_tags[ $bkey ] ) ) {
-		// Food, travel and the like keep to the place, not to its dramas.
-		$hash = in_array( $type, array( 'drama', 'film', 'variety', 'person' ), true )
-			? $country_tags[ $bkey ]
-			: array( strtolower( preg_replace( '/[^A-Za-z0-9]/', '', $kind ) ), str_replace( '-', '', daw_pin_country( $post_id ) ) );
+	// Other countries: the country's own searched tags, by topic.
+	$c = daw_pin_country( $post_id );
+	if ( '' !== $c && 'south-korea' !== $c ) {
+		$country_tags = array(
+			'china'       => array( 'cdrama', 'chinesedrama', 'cdramarecommendations' ),
+			'japan'       => array( 'jdrama', 'japanesedrama', 'japan' ),
+			'thailand'    => array( 'thaidrama', 'lakorn', 'thailand' ),
+			'taiwan'      => array( 'taiwanesedrama', 'twdrama', 'taiwan' ),
+			'hong-kong'   => array( 'tvbdrama', 'hongkongdrama', 'hongkong' ),
+			'philippines' => array( 'pinoydrama', 'teleserye', 'philippines' ),
+			'singapore'   => array( 'singaporedrama', 'mediacorp', 'singapore' ),
+		);
+		$place = str_replace( '-', '', $c );
+		$kh    = strtolower( preg_replace( '/[^A-Za-z0-9]/', '', $kind ) );
+		$hash  = 'drama' === $type && isset( $country_tags[ $c ] )
+			? $country_tags[ $c ]
+			: array_values( array_unique( array_filter( array( $kh, $place ) ) ) );
 	}
 	if ( 'person' === $type ) {
 		$h = strtolower( preg_replace( '/[^A-Za-z0-9]/', '', $name ) );
@@ -1094,7 +1177,95 @@ function daw_pin_routes() {
 	register_rest_route( 'daw/v1', '/pin/done', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_done' ) );
 	register_rest_route( 'daw/v1', '/pin/status', array( 'methods' => 'GET', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_status' ) );
 	register_rest_route( 'daw/v1', '/pin/saved', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_saved' ) );
+	register_rest_route( 'daw/v1', '/pin/board', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_board' ) );
 	register_rest_route( 'daw/v1', '/pin/adopt', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_adopt' ) );
+}
+
+/**
+ * A board that has a record ready for it and does not exist yet, or array().
+ *
+ * Asked for by key, name and description; the drip makes it on Pinterest
+ * and posts the id to /pin/board. At most three a day, the one with the
+ * most records waiting first, so the account grows its boards as the site
+ * grows its categories. A board Pinterest refused is not asked for again
+ * for a day.
+ */
+function daw_pin_board_wanted() {
+	$t = daw_pin_today();
+	if ( (int) ( $t['boards'] ?? 0 ) >= 3 ) {
+		return array();
+	}
+	$need = get_transient( 'daw_pin_need' );
+	if ( ! is_array( $need ) ) {
+		$boards = daw_pin_boards();
+		$need   = array();
+		$count  = static function ( $k ) use ( &$need, $boards ) {
+			if ( isset( $boards[ $k ] ) && '' === $boards[ $k ]['id'] ) {
+				$need[ $k ] = ( $need[ $k ] ?? 0 ) + 1;
+			}
+		};
+		$scope = daw_pin_settings()['scope'];
+		foreach ( daw_pin_candidates() as $id ) {
+			if ( 'all' === $scope || ! function_exists( 'daw_ae_is_locked' ) || daw_ae_is_locked( $id ) ) {
+				$count( daw_pin_board_key( $id ) );
+			}
+		}
+		$pinned = get_posts(
+			array(
+				'post_type'      => 'post',
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'meta_query'     => array( array( 'key' => DAW_PIN_LOG, 'compare' => 'EXISTS' ) ), // phpcs:ignore WordPress.DB.SlowDBQuery
+			)
+		);
+		foreach ( $pinned as $id ) {
+			foreach ( daw_pin_also( $id ) as $k ) {
+				$count( $k );
+			}
+		}
+		arsort( $need );
+		set_transient( 'daw_pin_need', $need, HOUR_IN_SECONDS );
+	}
+	$fail = daw_pin_opt( 'daw_pin_board_fail', array() );
+	$all  = daw_pin_boards();
+	foreach ( array_keys( $need ) as $k ) {
+		if ( ! isset( $all[ $k ] ) || '' !== $all[ $k ]['id'] || ( is_array( $fail ) && time() - (int) ( $fail[ $k ] ?? 0 ) < DAY_IN_SECONDS ) ) {
+			continue;
+		}
+		return array(
+			'key'         => $k,
+			'name'        => $all[ $k ]['name'],
+			'description' => $all[ $k ]['desc'] . ' From Discover Asian World.',
+		);
+	}
+	return array();
+}
+
+/** Make made a board (or could not): keep its id. */
+function daw_pin_rest_board( WP_REST_Request $r ) {
+	$p   = $r->get_json_params();
+	$key = sanitize_key( (string) ( $p['key'] ?? '' ) );
+	$id  = preg_replace( '/[^0-9]/', '', (string) ( $p['board_id'] ?? '' ) );
+	if ( '' === $key || ! isset( daw_pin_boards()[ $key ] ) ) {
+		return new WP_Error( 'daw_pin_bad', 'unknown board key.', array( 'status' => 400 ) );
+	}
+	$t           = daw_pin_today();
+	$t['boards'] = (int) ( $t['boards'] ?? 0 ) + 1;
+	update_option( 'daw_pin_day', $t, false );
+	if ( '' === $id || ! empty( $p['failed'] ) ) {
+		$fail         = daw_pin_opt( 'daw_pin_board_fail', array() );
+		$fail         = is_array( $fail ) ? $fail : array();
+		$fail[ $key ] = time();
+		update_option( 'daw_pin_board_fail', $fail, false );
+		return array( 'ok' => false, 'key' => $key );
+	}
+	$ids         = daw_pin_opt( 'daw_pin_board_ids', array() );
+	$ids         = is_array( $ids ) ? $ids : array();
+	$ids[ $key ] = $id;
+	update_option( 'daw_pin_board_ids', $ids, false );
+	return array( 'ok' => true, 'key' => $key, 'board_id' => $id );
 }
 
 function daw_pin_rest_next( WP_REST_Request $r ) {
@@ -1107,6 +1278,12 @@ function daw_pin_rest_next( WP_REST_Request $r ) {
 	}
 
 	$why = daw_pin_wait_reason();
+	if ( 'off' !== $why && 'outside hours' !== $why ) {
+		$board = daw_pin_board_wanted();
+		if ( $board ) {
+			return array( 'item' => null, 'why' => 'board', 'board' => $board );
+		}
+	}
 	if ( '' !== $why && ! $r->get_param( 'force' ) ) {
 		// Between new pins, an existing pin may be saved to one more board.
 		$t = daw_pin_today();
@@ -1296,7 +1473,7 @@ function daw_pin_save_due() {
 		}
 		$saves = get_post_meta( $id, DAW_PIN_SAVES, true );
 		$saves = is_array( $saves ) ? $saves : array();
-		if ( count( $saves ) >= 2 ) {
+		if ( count( $saves ) >= 3 ) {
 			continue;
 		}
 		$last = $saves ? (int) end( $saves )['at'] : (int) $pin['at'];
@@ -1528,7 +1705,7 @@ function daw_pin_settings_save() {
 	$ramp       = array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['ramp'] ?? '6,10,15' ) ) ) );
 	$s['look']  = isset( $_POST['look'] ) && 'card' === $_POST['look'] ? 'card' : 'direct';
 	$s['ramp']  = implode( ',', array_slice( array_pad( array_filter( $ramp ), 3, 15 ), 0, 3 ) );
-	$s['rv']    = 2;
+	$s['rv']    = 3;
 	update_option( 'daw_pin', $s, false );
 	daw_pin_state_save();
 	wp_safe_redirect( admin_url( 'admin.php?page=daw-pinterest&saved=1' ) );
