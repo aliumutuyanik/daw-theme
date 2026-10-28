@@ -89,16 +89,17 @@ function daw_pin_boards() {
 		'kfood'    => array( 'name' => 'Korean Food and Recipes', 'id' => '988118043183707544' ),
 		'kculture' => array( 'name' => 'Korean Culture and Travel', 'id' => '988118043183707545' ),
 		'news'     => array( 'name' => 'K-Drama News', 'id' => '988118043183707546' ),
-		// Boards a pin is also saved to, never a pin's first board. An empty
-		// id means the board is not made yet: it is made on Pinterest only
-		// once the Pinterest screen counts 15 or more records for it.
-		'nfmovie'  => array( 'name' => 'Korean Movies on Netflix', 'id' => '', 'also' => true ),
-		'viki'     => array( 'name' => 'K-Dramas on Viki', 'id' => '', 'also' => true ),
-		'prime'    => array( 'name' => 'K-Dramas on Prime Video', 'id' => '', 'also' => true ),
-		'medical'  => array( 'name' => 'Medical K-Dramas', 'id' => '', 'also' => true ),
-		'school'   => array( 'name' => 'School and Youth K-Dramas', 'id' => '', 'also' => true ),
-		'rommovie' => array( 'name' => 'Romantic Korean Movies', 'id' => '', 'also' => true ),
-		'action'   => array( 'name' => 'Korean Action Movies', 'id' => '', 'also' => true ),
+		// Boards a pin is also saved to, never a pin's first board. A board
+		// is made on Pinterest only once the Pinterest screen counts 15 or
+		// more records for it; an empty id means not made yet. All seven
+		// were made on 28 Oct 2026 (19 to 81 records each).
+		'nfmovie'  => array( 'name' => 'Korean Movies on Netflix', 'id' => '988118043183707580', 'also' => true ),
+		'viki'     => array( 'name' => 'K-Dramas on Viki', 'id' => '988118043183707574', 'also' => true ),
+		'prime'    => array( 'name' => 'K-Dramas on Prime Video', 'id' => '988118043183707578', 'also' => true ),
+		'medical'  => array( 'name' => 'Medical K-Dramas', 'id' => '988118043183707579', 'also' => true ),
+		'school'   => array( 'name' => 'School and Youth K-Dramas', 'id' => '988118043183707576', 'also' => true ),
+		'rommovie' => array( 'name' => 'Romantic Korean Movies', 'id' => '988118043183707577', 'also' => true ),
+		'action'   => array( 'name' => 'Korean Action Movies', 'id' => '988118043183707575', 'also' => true ),
 	);
 	return apply_filters( 'daw_pin_boards', $boards );
 }
@@ -242,8 +243,23 @@ function daw_pin_board_id( $key ) {
 
 /* ============================================================== settings === */
 
+/**
+ * An option of this file, read past the object cache.
+ *
+ * Two requests at once (Make asking again before the first answer came back,
+ * 28 Oct 2026) left LiteSpeed's object cache holding "this option does not
+ * exist" for options both had just written, so the day's count read as zero
+ * and the daily cap stopped counting. These options are small and read a few
+ * times a request; reading them fresh costs nothing that matters.
+ */
+function daw_pin_opt( $name, $default = array() ) {
+	wp_cache_delete( 'notoptions', 'options' );
+	wp_cache_delete( $name, 'options' );
+	return get_option( $name, $default );
+}
+
 function daw_pin_settings() {
-	$s = get_option( 'daw_pin', array() );
+	$s = daw_pin_opt( 'daw_pin', array() );
 	return wp_parse_args(
 		is_array( $s ) ? $s : array(),
 		array(
@@ -304,7 +320,7 @@ function daw_pin_tz() {
 /** Pins made today (New York day), newest last: list of [post_id, at]. */
 function daw_pin_today() {
 	$day = ( new DateTime( 'now', daw_pin_tz() ) )->format( 'Y-m-d' );
-	$t   = get_option( 'daw_pin_day', array() );
+	$t   = daw_pin_opt( 'daw_pin_day', array() );
 	if ( ! is_array( $t ) || ( $t['day'] ?? '' ) !== $day ) {
 		$t = array( 'day' => $day, 'pins' => array() );
 	}
@@ -398,7 +414,7 @@ function daw_pin_wait_reason() {
  */
 function daw_pin_pick() {
 	$t         = daw_pin_today();
-	$last_post = $t['pins'] ? (int) end( $t['pins'] )[0] : (int) get_option( 'daw_pin_last', 0 );
+	$last_post = $t['pins'] ? (int) end( $t['pins'] )[0] : (int) daw_pin_opt( 'daw_pin_last', 0 );
 	$last_key  = $last_post ? daw_pin_board_key( $last_post ) : '';
 
 	// Every third pin of the day goes to a page that already has its first
@@ -1042,7 +1058,7 @@ function daw_pin_routes() {
 function daw_pin_rest_next( WP_REST_Request $r ) {
 	// A record handed out and not written back yet is handed out again, not a
 	// second record: Make may ask twice before Pinterest has answered.
-	$held = get_option( 'daw_pin_held', array() );
+	$held = daw_pin_opt( 'daw_pin_held', array() );
 	if ( is_array( $held ) && ! empty( $held['id'] ) && time() - (int) $held['at'] < 30 * MINUTE_IN_SECONDS && daw_pin_log_count( (int) $held['id'] ) === (int) ( $held['n'] ?? 0 ) ) {
 		$item = daw_pin_item( (int) $held['id'], (string) ( $held['look'] ?? '' ) );
 		return is_wp_error( $item ) ? array( 'item' => null, 'why' => $item->get_error_message() ) : array( 'item' => $item );
@@ -1133,7 +1149,7 @@ function daw_pin_rest_adopt( WP_REST_Request $r ) {
 	if ( ! $mine ) {
 		foreach ( $log as $e ) {
 			if ( 'atlandi' !== ( $e['pin'] ?? '' ) ) {
-				$d = get_option( 'daw_pin_dupes', array() );
+				$d = daw_pin_opt( 'daw_pin_dupes', array() );
 				$d = is_array( $d ) ? $d : array();
 				$d[ $pin ] = array( 'post' => $id, 'keep' => (string) $e['pin'] );
 				update_option( 'daw_pin_dupes', $d, false );
@@ -1258,11 +1274,15 @@ function daw_pin_log_count( $id ) {
 
 /** Write a pin (or a refusal, pin "atlandi") into the record and the day. */
 function daw_pin_record( $id, $pin ) {
-	$held = get_option( 'daw_pin_held', array() );
+	$held = daw_pin_opt( 'daw_pin_held', array() );
 	$look = ( is_array( $held ) && (int) ( $held['id'] ?? 0 ) === (int) $id ) ? (string) ( $held['look'] ?? '' ) : '';
 	$img  = daw_pin_image( $id, $look );
 	$log = get_post_meta( $id, DAW_PIN_LOG, true );
 	$log = is_array( $log ) ? $log : array();
+	// The same answer twice (Make retrying a slow request) is written once.
+	if ( 'atlandi' !== $pin && in_array( $pin, array_map( 'strval', wp_list_pluck( $log, 'pin' ) ), true ) ) {
+		return;
+	}
 	$log[] = array(
 		'pin'   => $pin,
 		'board' => daw_pin_board_key( $id ),
@@ -1286,7 +1306,9 @@ function daw_pin_record( $id, $pin ) {
 		$s['start'] = gmdate( 'Y-m-d' );
 		update_option( 'daw_pin', $s, false );
 	}
-	daw_pin_state_save();
+	// The counts (daw_pin_state) are not rebuilt here: they walk every
+	// record, and this answer has to come back before Make gives up waiting.
+
 }
 
 /**
