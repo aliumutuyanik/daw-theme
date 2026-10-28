@@ -933,6 +933,29 @@ while ( have_posts() ) :
 				<?php endif; ?>
 
 				<?php
+				// The sister site keeps the BL/GL side of a career: pairings and
+				// series rankings. It is not an official account, so it stays out
+				// of the card above and reads as a reference note, the same one a
+				// BL title carries. Rendered only when that page is live.
+				$blgl = trim( (string) daw_field( 'daw_blgl_url' ) );
+				if ( '' !== $blgl && filter_var( $blgl, FILTER_VALIDATE_URL ) ) :
+					?>
+					<aside class="daw-handoff" style="margin-top:16px">
+						<p class="daw-handoff-l"><?php echo daw_watch_mark( $blgl, 'BLGLFlix', 20 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'On our sister site', 'daw' ); ?></p>
+						<p class="daw-handoff-b">
+							<?php
+							printf(
+								/* translators: 1: person name, 2: link to the person's page on the BL/GL site */
+								esc_html__( '%1$s\'s BL and GL work, with the pairings and series rankings, is kept on %2$s.', 'daw' ),
+								esc_html( get_the_title( $id ) ),
+								'<a href="' . esc_url( $blgl ) . '">BLGLFlix</a>'
+							);
+							?>
+						</p>
+					</aside>
+				<?php endif; ?>
+
+				<?php
 				// NO READER SCORE ON A PERSON
 				// ---------------------------
 				// Rating a drama out of ten is what readers came to do. Rating a

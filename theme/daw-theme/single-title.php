@@ -541,7 +541,7 @@ while ( have_posts() ) :
 				if ( $blgl !== '' && filter_var( $blgl, FILTER_VALIDATE_URL ) ) :
 					?>
 					<aside class="daw-handoff daw-tsec">
-						<p class="daw-handoff-l"><?php esc_html_e( 'On our sister site', 'daw' ); ?></p>
+						<p class="daw-handoff-l"><?php echo daw_watch_mark( $blgl, 'BLGLFlix', 20 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'On our sister site', 'daw' ); ?></p>
 						<p class="daw-handoff-b">
 							<?php
 							printf(

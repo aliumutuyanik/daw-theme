@@ -4320,6 +4320,9 @@ html { scroll-behavior: smooth; }
     padding: 2px 0 2px 14px;
 }
 .daw-handoff-l {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin: 0 0 4px;
     font-size: 11px;
     letter-spacing: .08em;
@@ -4338,6 +4341,15 @@ html { scroll-behavior: smooth; }
     text-underline-offset: 2px;
 }
 .daw-handoff-b a:hover { color: var(--ink); }
+/* The sister site's own mark, small: it identifies the destination and
+   stays a reference, not a button. */
+.daw-handoff-l .daw-watch-mark {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    font-size: 11px;
+    border-radius: 4px;
+}
 
 /* THE WAY BACK FROM A SECTION PAGE
    --------------------------------

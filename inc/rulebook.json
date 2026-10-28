@@ -1264,7 +1264,7 @@
   },
   "daw_blgl_url": {
    "no": "3",
-   "rule": "Yalnız BL/GL yapımlarda; diğerlerinde uygulanmaz."
+   "rule": "Yalnız BL/GL yapımlarda ve BL/GL işi olan kişilerde, BLGLFlix'te canlı sayfa varsa; diğerlerinde uygulanmaz."
   },
   "daw_best_scenes": {
    "no": "26",
