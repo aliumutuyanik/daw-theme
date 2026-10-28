@@ -89,6 +89,16 @@ function daw_pin_boards() {
 		'kfood'    => array( 'name' => 'Korean Food and Recipes', 'id' => '988118043183707544' ),
 		'kculture' => array( 'name' => 'Korean Culture and Travel', 'id' => '988118043183707545' ),
 		'news'     => array( 'name' => 'K-Drama News', 'id' => '988118043183707546' ),
+		// Boards a pin is also saved to, never a pin's first board. An empty
+		// id means the board is not made yet: it is made on Pinterest only
+		// once the Pinterest screen counts 15 or more records for it.
+		'nfmovie'  => array( 'name' => 'Korean Movies on Netflix', 'id' => '', 'also' => true ),
+		'viki'     => array( 'name' => 'K-Dramas on Viki', 'id' => '', 'also' => true ),
+		'prime'    => array( 'name' => 'K-Dramas on Prime Video', 'id' => '', 'also' => true ),
+		'medical'  => array( 'name' => 'Medical K-Dramas', 'id' => '', 'also' => true ),
+		'school'   => array( 'name' => 'School and Youth K-Dramas', 'id' => '', 'also' => true ),
+		'rommovie' => array( 'name' => 'Romantic Korean Movies', 'id' => '', 'also' => true ),
+		'action'   => array( 'name' => 'Korean Action Movies', 'id' => '', 'also' => true ),
 	);
 	return apply_filters( 'daw_pin_boards', $boards );
 }
@@ -168,6 +178,63 @@ function daw_pin_on_netflix( $post_id ) {
 	return false;
 }
 
+/** Does the record stream in the US on a service whose name contains $needle? */
+function daw_pin_streams_on( $post_id, $needle ) {
+	foreach ( daw_pin_streams( $post_id ) as $n ) {
+		if ( false !== stripos( $n, $needle ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Other boards the record belongs on, best first, its first board left out.
+ * The pin is saved to at most two of them, days apart (see daw_pin_save_due).
+ *
+ * @return string[] board keys, made or not
+ */
+function daw_pin_also( $post_id ) {
+	$type    = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
+	$c       = daw_pin_country( $post_id );
+	$primary = daw_pin_board_key( $post_id );
+	if ( ( '' !== $c && 'south-korea' !== $c ) || ! in_array( $type, array( 'drama', 'film' ), true ) ) {
+		return array();
+	}
+	$g    = daw_pin_genre_slugs( $post_id );
+	$has  = static function ( $slugs ) use ( $g ) {
+		return (bool) array_intersect( $slugs, $g );
+	};
+	$want = array();
+	if ( 'drama' === $type ) {
+		$want = array(
+			'netflix'  => daw_pin_on_netflix( $post_id ),
+			'romance'  => $has( array( 'romance', 'romantic-comedy' ) ),
+			'thriller' => $has( array( 'thriller', 'mystery', 'crime', 'psychological', 'horror' ) ),
+			'fantasy'  => $has( array( 'fantasy', 'supernatural', 'time-travel' ) ),
+			'sageuk'   => $has( array( 'historical', 'period-drama' ) ),
+			'viki'     => daw_pin_streams_on( $post_id, 'viki' ),
+			'prime'    => daw_pin_streams_on( $post_id, 'prime' ),
+			'medical'  => $has( array( 'medical' ) ),
+			'school'   => $has( array( 'school', 'youth', 'coming-of-age' ) ),
+		);
+	} else {
+		$want = array(
+			'nfmovie'  => daw_pin_on_netflix( $post_id ),
+			'khorror'  => $has( array( 'horror', 'thriller', 'crime', 'mystery', 'zombie' ) ),
+			'rommovie' => $has( array( 'romance', 'romantic-comedy', 'melodrama' ) ),
+			'action'   => $has( array( 'action', 'martial-arts' ) ),
+		);
+	}
+	$out = array();
+	foreach ( $want as $k => $yes ) {
+		if ( $yes && $k !== $primary ) {
+			$out[] = $k;
+		}
+	}
+	return $out;
+}
+
 function daw_pin_board_id( $key ) {
 	$b = daw_pin_boards();
 	return isset( $b[ $key ] ) ? (string) $b[ $key ]['id'] : '';
@@ -187,6 +254,7 @@ function daw_pin_settings() {
 			'ramp'  => '3,5,8',  // a day: weeks 1-2, weeks 3-4, after
 			'start' => '',       // Y-m-d of the first pin, set by the first pin
 			'look'  => 'direct', // direct: the TMDB picture as it is | card: drawn card
+			'saves' => 4,        // saves of existing pins to more boards, a day
 		)
 	);
 }
@@ -967,6 +1035,7 @@ function daw_pin_routes() {
 	register_rest_route( 'daw/v1', '/pin/next', array( 'methods' => 'GET', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_next' ) );
 	register_rest_route( 'daw/v1', '/pin/done', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_done' ) );
 	register_rest_route( 'daw/v1', '/pin/status', array( 'methods' => 'GET', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_status' ) );
+	register_rest_route( 'daw/v1', '/pin/saved', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_saved' ) );
 	register_rest_route( 'daw/v1', '/pin/adopt', array( 'methods' => 'POST', 'permission_callback' => $auth, 'callback' => 'daw_pin_rest_adopt' ) );
 }
 
@@ -981,6 +1050,23 @@ function daw_pin_rest_next( WP_REST_Request $r ) {
 
 	$why = daw_pin_wait_reason();
 	if ( '' !== $why && ! $r->get_param( 'force' ) ) {
+		// Between new pins, an existing pin may be saved to one more board.
+		$t = daw_pin_today();
+		if ( in_array( $why, array( 'too soon', 'daily cap reached' ), true ) && (int) ( $t['saves'] ?? 0 ) < (int) daw_pin_settings()['saves'] ) {
+			$due = daw_pin_save_due();
+			if ( $due ) {
+				return array(
+					'item' => null,
+					'why'  => $why,
+					'save' => array(
+						'id'       => $due[0],
+						'board'    => $due[1],
+						'board_id' => daw_pin_board_id( $due[1] ),
+						'pin_id'   => $due[2],
+					),
+				);
+			}
+		}
 		return array( 'item' => null, 'why' => $why );
 	}
 	list( $id, $look ) = daw_pin_pick();
@@ -1080,6 +1166,91 @@ function daw_pin_rest_adopt( WP_REST_Request $r ) {
 	);
 }
 
+/* ============================================================== saves === */
+
+const DAW_PIN_SAVES = '_daw_pin_saves'; // list of {board, pin, at}
+
+/**
+ * The next save of an existing pin to another board: [post, board key, pin
+ * id], or empty. A record's pin goes to at most two more boards, the first
+ * three days after the pin, the second three days after that, most visited
+ * records first. Only made boards count.
+ */
+function daw_pin_save_due() {
+	$ids = get_posts(
+		array(
+			'post_type'              => 'post',
+			'post_status'            => 'publish',
+			'posts_per_page'         => -1,
+			'fields'                 => 'ids',
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			'meta_query'             => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+				array( 'key' => DAW_PIN_LOG, 'compare' => 'EXISTS' ),
+				array( 'key' => DAW_PIN_SKIP, 'compare' => 'NOT EXISTS' ),
+			),
+		)
+	);
+	if ( ! $ids ) {
+		return array();
+	}
+	update_meta_cache( 'post', $ids );
+	usort(
+		$ids,
+		static function ( $a, $b ) {
+			return (int) get_post_meta( $b, 'daw_views_30', true ) - (int) get_post_meta( $a, 'daw_views_30', true );
+		}
+	);
+	foreach ( $ids as $id ) {
+		$log = get_post_meta( $id, DAW_PIN_LOG, true );
+		$pin = null;
+		foreach ( is_array( $log ) ? $log : array() as $e ) {
+			if ( 'atlandi' !== ( $e['pin'] ?? '' ) ) {
+				$pin = $e;
+				break;
+			}
+		}
+		if ( ! $pin ) {
+			continue;
+		}
+		$saves = get_post_meta( $id, DAW_PIN_SAVES, true );
+		$saves = is_array( $saves ) ? $saves : array();
+		if ( count( $saves ) >= 2 ) {
+			continue;
+		}
+		$last = $saves ? (int) end( $saves )['at'] : (int) $pin['at'];
+		if ( $last > time() - 3 * DAY_IN_SECONDS ) {
+			continue;
+		}
+		$done = wp_list_pluck( $saves, 'board' );
+		foreach ( daw_pin_also( $id ) as $k ) {
+			if ( $k !== $pin['board'] && ! in_array( $k, $done, true ) && '' !== daw_pin_board_id( $k ) ) {
+				return array( (int) $id, $k, (string) $pin['pin'] );
+			}
+		}
+	}
+	return array();
+}
+
+function daw_pin_rest_saved( WP_REST_Request $r ) {
+	$p     = $r->get_json_params();
+	$id    = (int) ( $p['id'] ?? 0 );
+	$board = sanitize_key( (string) ( $p['board'] ?? '' ) );
+	$pin   = preg_replace( '/[^0-9a-z]/', '', (string) ( $p['pin_id'] ?? '' ) );
+	if ( ! $id || '' === $board || 'post' !== get_post_type( $id ) ) {
+		return new WP_Error( 'daw_pin_bad', 'id and board are required.', array( 'status' => 400 ) );
+	}
+	$saves   = get_post_meta( $id, DAW_PIN_SAVES, true );
+	$saves   = is_array( $saves ) ? $saves : array();
+	$saves[] = array( 'board' => $board, 'pin' => $pin, 'at' => time(), 'ok' => empty( $p['failed'] ) ? 1 : 0 );
+	update_post_meta( $id, DAW_PIN_SAVES, $saves );
+
+	$t          = daw_pin_today();
+	$t['saves'] = (int) ( $t['saves'] ?? 0 ) + 1;
+	update_option( 'daw_pin_day', $t, false );
+	return array( 'ok' => true );
+}
+
 function daw_pin_log_count( $id ) {
 	$log = get_post_meta( $id, DAW_PIN_LOG, true );
 	return is_array( $log ) ? count( $log ) : 0;
@@ -1118,6 +1289,36 @@ function daw_pin_record( $id, $pin ) {
 	daw_pin_state_save();
 }
 
+/**
+ * How many published records each board would hold, as first board or as a
+ * save. A board not made yet is made once this reaches 15.
+ */
+function daw_pin_board_counts() {
+	$ids = get_posts(
+		array(
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		)
+	);
+	update_meta_cache( 'post', $ids );
+	$n = array_fill_keys( array_keys( daw_pin_boards() ), 0 );
+	foreach ( $ids as $id ) {
+		$k = daw_pin_board_key( $id );
+		if ( isset( $n[ $k ] ) ) {
+			$n[ $k ]++;
+		}
+		foreach ( daw_pin_also( $id ) as $a ) {
+			if ( isset( $n[ $a ] ) ) {
+				$n[ $a ]++;
+			}
+		}
+	}
+	return $n;
+}
+
 /** Counts, kept in an option the management API can read. */
 function daw_pin_state() {
 	global $wpdb;
@@ -1133,6 +1334,8 @@ function daw_pin_state() {
 		'wait'    => daw_pin_wait_reason(),
 		'start'   => daw_pin_settings()['start'],
 		'second'  => count( daw_pin_second_candidates() ),
+		'boards'  => daw_pin_board_counts(),
+		'saves'   => (int) ( $t['saves'] ?? 0 ),
 		'plan'    => daw_pin_plan( 10 ),
 		'at'      => time(),
 	);
@@ -1306,11 +1509,18 @@ function daw_pin_page() {
 	submit_button( 'Kaydet' );
 	echo '</form>';
 
-	echo '<h2>Board\'lar</h2><ul>';
-	foreach ( daw_pin_boards() as $b ) {
-		printf( '<li>%s <code>%s</code></li>', esc_html( $b['name'] ), esc_html( $b['id'] ) );
+	echo '<h2>Board\'lar</h2><table class="widefat striped" style="max-width:700px"><thead><tr><th>Board</th><th>Kayıt</th><th>Durum</th></tr></thead><tbody>';
+	$counts = isset( $st['boards'] ) ? $st['boards'] : array();
+	foreach ( daw_pin_boards() as $k => $b ) {
+		$n = (int) ( $counts[ $k ] ?? 0 );
+		if ( '' !== $b['id'] ) {
+			$state = '<code>' . esc_html( $b['id'] ) . '</code>';
+		} else {
+			$state = $n >= 15 ? 'Açılabilir (15+ kayıt)' : 'Açılmadı: 15 kayıt bekleniyor';
+		}
+		printf( '<tr><td>%s%s</td><td>%d</td><td>%s</td></tr>', esc_html( $b['name'] ), ! empty( $b['also'] ) ? ' <span class="description">(ek kayıt)</span>' : '', $n, $state ); // phpcs:ignore WordPress.Security.EscapeOutput
 	}
-	echo '</ul>';
+	echo '</tbody></table>';
 
 	echo '<h2>Sıradaki pinler</h2><div style="display:flex;flex-wrap:wrap;gap:16px">';
 	$n = 0;
