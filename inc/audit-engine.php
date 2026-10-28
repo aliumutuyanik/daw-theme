@@ -890,7 +890,8 @@ function daw_ae_audit( $post_id ) {
 			}
 			// A pattern like "pinocchio cast" is met by a heading that holds "cast".
 			$tail = trim( str_replace( strtolower( $title_text ), '', $k ) );
-			$met  = daw_ae_kw_in( $k, $hs ) || ( '' !== $tail && daw_ae_kw_in( $tail, $hs ) );
+			// Folded like the body checks, so "K-pop" in a heading meets "kpop".
+			$met  = daw_ae_kw_in_fold( $k, $hs ) || ( '' !== $tail && daw_ae_kw_in_fold( $tail, $hs ) );
 			$page_items[] = array( 'Başlıkta yüksek hacimli kalıp (K11)', $k, $met ? 'ok' : 'no', $met ? '' : 'En çok aranan kalıplardan biri hiçbir başlıkta yok' );
 		}
 	}
