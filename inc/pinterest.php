@@ -26,14 +26,14 @@
  * record handed out is held for 30 minutes and handed out again only to the
  * same question, so a slow run never becomes two pins.
  *
- * WHY THE PICTURE IS DRAWN
- * ------------------------
- * Posters and stills belong to the studios. The image rights register already
- * says the site does not host what it cannot defend, and a Pinterest account
- * that collects copyright complaints is closed. So the pin is a card drawn by
- * the site, as the news cards are: the title, the kind, the year and network,
- * the name in its own script, the logo. A record whose featured image has an
- * allowed licence record gets that photo on top of the card instead.
+ * THE PICTURE
+ * -----------
+ * The pin is a card drawn by the site: the record's own TMDB poster (or a
+ * person's TMDB profile photo) on top, the same picture the page shows, then
+ * the kind, year and network, the title and the address. The owner chose the
+ * TMDB pictures on 28 October 2026. A record with no confirmed TMDB picture
+ * uses a featured image with an allowed licence record, and failing that the
+ * drawn seal: maroon, gold frame, logo, the name in its own script.
  *
  * PACE
  * ----
@@ -52,7 +52,7 @@ const DAW_PIN_LOG  = '_daw_pin';      // list of {pin, board, img, at}
 const DAW_PIN_SKIP = '_daw_pin_skip'; // "do not send to Pinterest"
 const DAW_PIN_W    = 1000;
 const DAW_PIN_H    = 1500;
-const DAW_PIN_REV  = '1'; // bump when the card layout changes
+const DAW_PIN_REV  = '2'; // bump when the card layout changes
 
 /* ================================================================ boards === */
 
@@ -557,28 +557,63 @@ function daw_pin_text( $post_id ) {
 
 /* ================================================================ picture === */
 
-/** The record's featured image, if its licence lets it go on a pin. */
+/**
+ * The picture on top of the pin.
+ *
+ * First the record's own TMDB poster (titles) or profile photo (people), the
+ * same picture the page shows from TMDB, used only when the TMDB match was
+ * confirmed (owner, 28 Oct 2026: "görseller sitemdeki TMDB API görselleri
+ * olacak, linkler sitemde"). Then a featured image with an allowed licence
+ * record. Nothing else: no picture means the drawn seal.
+ *
+ * @return array {id, url, path, att, kind} or empty
+ */
 function daw_pin_photo( $post_id ) {
+	$tmdb = function_exists( 'daw_tmdb_img_path' ) ? daw_tmdb_img_path( $post_id ) : '';
+	if ( '' !== $tmdb ) {
+		return array( 'id' => 'tmdb:' . $tmdb, 'url' => 'https://image.tmdb.org/t/p/w780' . $tmdb, 'path' => '', 'att' => 0, 'kind' => 'tmdb' );
+	}
 	$thumb = (int) get_post_thumbnail_id( $post_id );
 	if ( ! $thumb || ! function_exists( 'daw_lic_status' ) || 'ok' !== daw_lic_status( $thumb, $post_id ) ) {
-		return 0;
+		return array();
 	}
 	// A news card is our own drawing of the headline; the pin draws its own.
 	if ( $thumb === (int) get_post_meta( $post_id, '_daw_card_att', true ) ) {
-		return 0;
+		return array();
 	}
 	$path = get_attached_file( $thumb );
-	return ( $path && file_exists( $path ) ) ? $thumb : 0;
+	return ( $path && file_exists( $path ) ) ? array( 'id' => 'att:' . $thumb, 'url' => '', 'path' => $path, 'att' => $thumb, 'kind' => 'att' ) : array();
 }
 
-/** Copy $src into a box, cropped to fill it, centred. */
-function daw_pin_cover( $im, $src, $x, $y, $w, $h ) {
+/** The photo as a GD image, or false. */
+function daw_pin_photo_im( $photo ) {
+	if ( ! $photo ) {
+		return false;
+	}
+	if ( '' !== $photo['path'] ) {
+		$bytes = (string) file_get_contents( $photo['path'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	} else {
+		$r = wp_remote_get( $photo['url'], array( 'timeout' => 20 ) );
+		if ( is_wp_error( $r ) || 200 !== (int) wp_remote_retrieve_response_code( $r ) ) {
+			return false;
+		}
+		$bytes = (string) wp_remote_retrieve_body( $r );
+	}
+	return '' !== $bytes ? @imagecreatefromstring( $bytes ) : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors
+}
+
+/**
+ * Copy $src into a box, cropped to fill it. Centred across; down the picture
+ * the crop sits at $ay (0 top, 0.5 middle): faces on posters sit high, the
+ * title block they cut away sits low and is set in the panel anyway.
+ */
+function daw_pin_cover( $im, $src, $x, $y, $w, $h, $ay = 0.5 ) {
 	$sw = imagesx( $src );
 	$sh = imagesy( $src );
 	$r  = max( $w / $sw, $h / $sh );
 	$cw = (int) round( $w / $r );
 	$ch = (int) round( $h / $r );
-	imagecopyresampled( $im, $src, $x, $y, (int) ( ( $sw - $cw ) / 2 ), (int) ( ( $sh - $ch ) / 2 ), $w, $h, $cw, $ch );
+	imagecopyresampled( $im, $src, $x, $y, (int) ( ( $sw - $cw ) / 2 ), (int) ( ( $sh - $ch ) * $ay ), $w, $h, $cw, $ch );
 }
 
 /**
@@ -598,10 +633,12 @@ function daw_pin_render( $post_id ) {
 		return new WP_Error( 'daw_pin_font', 'The card fonts could not be fetched from Google Fonts.' );
 	}
 
-	$W   = DAW_PIN_W;
-	$H   = DAW_PIN_H;
-	$top = 860; // the picture's share of the pin
-	$im  = imagecreatetruecolor( $W, $H );
+	$W     = DAW_PIN_W;
+	$H     = DAW_PIN_H;
+	$src   = daw_pin_photo_im( daw_pin_photo( $post_id ) );
+	$top   = $src ? 1060 : 860; // the picture's share of the pin
+	$lines_max = $src ? 2 : 3;
+	$im    = imagecreatetruecolor( $W, $H );
 	imagealphablending( $im, true );
 
 	$paper  = daw_card_rgb( $im, 'FAF7F2' );
@@ -621,11 +658,8 @@ function daw_pin_render( $post_id ) {
 		imagesavealpha( $lsrc, true );
 	}
 
-	$photo = daw_pin_photo( $post_id );
-	$src   = $photo ? imagecreatefromstring( (string) file_get_contents( get_attached_file( $photo ) ) ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions
-
 	if ( $src ) {
-		daw_pin_cover( $im, $src, 0, 0, $W, $top );
+		daw_pin_cover( $im, $src, 0, 0, $W, $top, 0.2 );
 		imagedestroy( $src );
 	} else {
 		// The seal: maroon, a gold frame, the logo, the name in its own script.
@@ -664,7 +698,7 @@ function daw_pin_render( $post_id ) {
 
 	// Kicker.
 	$x  = 70;
-	$ky = $top + 92;
+	$ky = $top + ( $src ? 74 : 92 );
 	if ( '' !== $d['kicker'] ) {
 		$px = 26;
 		while ( daw_card_tw( $px, $f_bold, $d['kicker'] ) + 2 * mb_strlen( $d['kicker'] ) > $W - 2 * $x && $px > 18 ) {
@@ -673,21 +707,21 @@ function daw_pin_render( $post_id ) {
 		daw_card_tracked( $im, $px, $x, $ky, $dgold, $f_bold, $d['kicker'], 2 );
 	}
 
-	// Headline: as large as it can be in four lines.
-	$px    = 78;
+	// Headline: as large as it can be in the lines the panel has.
+	$px    = $src ? 70 : 78;
 	$lines = daw_card_wrap( $px, $f_head, $d['name'], $W - 2 * $x );
-	while ( count( $lines ) > 3 && $px > 44 ) {
+	while ( count( $lines ) > $lines_max && $px > 40 ) {
 		$px   -= 4;
 		$lines = daw_card_wrap( $px, $f_head, $d['name'], $W - 2 * $x );
 	}
 	$lh = (int) round( $px * 1.16 );
-	$y  = $ky + 30 + $px;
-	foreach ( array_slice( $lines, 0, 4 ) as $ln ) {
+	$y  = $ky + ( $src ? 18 : 30 ) + $px;
+	foreach ( array_slice( $lines, 0, $lines_max + 1 ) as $ln ) {
 		imagettftext( $im, $px * 0.75, 0, $x, $y, $ink, $f_head, $ln );
 		$y += $lh;
 	}
 
-	if ( '' !== $d['sub'] ) {
+	if ( '' !== $d['sub'] && $y + 6 < $H - 130 ) {
 		imagettftext( $im, 32 * 0.75, 0, $x, $y + 6, $muted, $f_ui, $d['sub'] );
 	}
 
@@ -710,7 +744,8 @@ function daw_pin_render( $post_id ) {
  */
 function daw_pin_image( $post_id ) {
 	$d    = daw_pin_text( $post_id );
-	$hash = md5( wp_json_encode( array( $d['name'], $d['kicker'], $d['sub'], $d['native'], daw_pin_photo( $post_id ), DAW_PIN_REV ) ) );
+	$photo = daw_pin_photo( $post_id );
+	$hash  = md5( wp_json_encode( array( $d['name'], $d['kicker'], $d['sub'], $d['native'], $photo['id'] ?? '', DAW_PIN_REV ) ) );
 	$up   = wp_upload_dir();
 	$dir  = trailingslashit( $up['basedir'] ) . 'daw-pins';
 	$name = 'pin-' . (int) $post_id . '-' . substr( $hash, 0, 10 ) . '.jpg';
@@ -734,7 +769,7 @@ function daw_pin_image( $post_id ) {
 		'url'   => trailingslashit( $up['baseurl'] ) . 'daw-pins/' . $name,
 		'path'  => $path,
 		'hash'  => $hash,
-		'photo' => daw_pin_photo( $post_id ),
+		'photo' => $photo,
 	);
 }
 
@@ -747,8 +782,13 @@ function daw_pin_item( $post_id ) {
 	$d   = daw_pin_text( $post_id );
 	$key = daw_pin_board_key( $post_id );
 
-	if ( $img['photo'] ) {
-		$alt = trim( (string) get_post_meta( $img['photo'], '_wp_attachment_image_alt', true ) );
+	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
+	if ( $img['photo'] && 'tmdb' === $img['photo']['kind'] ) {
+		$alt = 'person' === $type
+			? $d['name'] . ', ' . $d['kind'] . ', photo'
+			: 'Poster of ' . $d['name'] . ( '' !== $d['year'] ? ' (' . $d['year'] . ')' : '' ) . ', ' . $d['kind'];
+	} elseif ( $img['photo'] ) {
+		$alt = trim( (string) get_post_meta( $img['photo']['att'], '_wp_attachment_image_alt', true ) );
 		$alt = '' !== $alt ? $alt . '. ' . $d['name'] . ', ' . $d['kind'] : $d['name'] . ', ' . $d['kind'];
 	} else {
 		$alt = 'Title card for ' . $d['name'] . ( '' !== $d['year'] ? ' (' . $d['year'] . ')' : '' ) . ( '' !== $d['kind'] ? ', ' . $d['kind'] : '' ) . ', from Discover Asian World';
