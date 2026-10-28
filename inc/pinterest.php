@@ -1138,19 +1138,30 @@ function daw_pin_rest_adopt( WP_REST_Request $r ) {
 		return array( 'action' => 'none', 'why' => 'link is not a published record', 'pin_id' => $pin );
 	}
 
+	// The picture, by Pinterest's own file name: the same file on the same
+	// page twice is a duplicate; a different picture of the same page (the
+	// old gallery pins) is a pin of its own and is kept and corrected.
+	$img = (string) ( $p['img'] ?? '' );
+	$img = 'old:' . ( '' !== $img ? md5( basename( (string) wp_parse_url( $img, PHP_URL_PATH ) ) ) : $pin );
+
 	$log  = get_post_meta( $id, DAW_PIN_LOG, true );
 	$log  = is_array( $log ) ? $log : array();
-	$mine = false;
-	foreach ( $log as $e ) {
-		if ( (string) ( $e['pin'] ?? '' ) === $pin ) {
-			$mine = true;
+	$mine = in_array( $pin, array_map( 'strval', wp_list_pluck( $log, 'pin' ) ), true );
+	if ( $mine ) {
+		// Adopted before pictures were compared (1.75.91): give its entry the
+		// picture's name now, so a later copy of the same file is caught.
+		foreach ( $log as $i => $e ) {
+			if ( (string) $e['pin'] === $pin && 0 === strpos( (string) $e['img'], 'old:' ) && $e['img'] !== $img ) {
+				$log[ $i ]['img'] = $img;
+				update_post_meta( $id, DAW_PIN_LOG, $log );
+			}
 		}
 	}
+	$d    = daw_pin_opt( 'daw_pin_dupes', array() );
+	$d    = is_array( $d ) ? $d : array();
 	if ( ! $mine ) {
 		foreach ( $log as $e ) {
-			if ( 'atlandi' !== ( $e['pin'] ?? '' ) ) {
-				$d = daw_pin_opt( 'daw_pin_dupes', array() );
-				$d = is_array( $d ) ? $d : array();
+			if ( (string) ( $e['img'] ?? '' ) === $img ) {
 				$d[ $pin ] = array( 'post' => $id, 'keep' => (string) $e['pin'] );
 				update_option( 'daw_pin_dupes', $d, false );
 				return array( 'action' => 'duplicate', 'pin_id' => $pin, 'post' => $id, 'keep' => (string) $e['pin'] );
@@ -1160,10 +1171,14 @@ function daw_pin_rest_adopt( WP_REST_Request $r ) {
 		$log[] = array(
 			'pin'   => $pin,
 			'board' => 'old',
-			'img'   => 'old:' . $pin,
+			'img'   => $img,
 			'at'    => $at ? $at : time(),
 		);
 		update_post_meta( $id, DAW_PIN_LOG, $log );
+	}
+	if ( isset( $d[ $pin ] ) ) {
+		unset( $d[ $pin ] ); // listed by the first pass, before pictures were compared
+		update_option( 'daw_pin_dupes', $d, false );
 	}
 
 	$d    = daw_pin_text( $id );
