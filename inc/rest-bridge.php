@@ -128,6 +128,11 @@ add_action( 'rest_api_init', static function () {
 				if ( ! function_exists( 'daw_wc_rows' ) || ! function_exists( 'daw_ae_text_issues' ) ) {
 					return daw_rb_nocache( array( 'error' => 'audit not loaded' ) );
 				}
+				// The sentence index is rebuilt daily; after a day of heavy
+				// writing it can be rebuilt on demand before a sweep.
+				if ( $r->get_param( 'build_orig' ) && function_exists( 'daw_orig_build' ) ) {
+					return daw_rb_nocache( array( 'hashes' => count( (array) daw_orig_build() ) ) );
+				}
 				if ( $r->get_param( 'build_tpl' ) && function_exists( 'daw_voice_tpl_build' ) ) {
 					$fr = daw_voice_tpl_build();
 					return daw_rb_nocache( array( 'frames' => count( $fr ), 'top' => array_slice( $fr, 0, 60, true ) ) );
