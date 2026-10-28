@@ -3,7 +3,7 @@
  * Plugin Name:       DAW Core — record types and fields
  * Plugin URI:        https://discoverasianworld.com
  * Description:       The data layer for Discover Asian World: the dw_type record taxonomy and the Meta Box field schema for titles and people. Registers no public archives and no rewrite rules, so activating it cannot change a single URL.
- * Version:     1.75.87
+ * Version:     1.75.93
  * Requires at least: 6.5
  * Requires PHP:      8.0
  * Author:            Discover Asian World
@@ -32,7 +32,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'DAW_VERSION', '1.75.87' );
+define( 'DAW_VERSION', '1.75.93' );
 define( 'DAW_DIR', plugin_dir_path( __FILE__ ) );
 
 /**
@@ -140,6 +140,7 @@ function daw_boot() {
 	require_once DAW_DIR . 'inc/verify.php';
 	require_once DAW_DIR . 'inc/image-rights.php';
 	require_once DAW_DIR . 'inc/news-cards.php';
+	require_once DAW_DIR . 'inc/pinterest.php';
 	require_once DAW_DIR . 'inc/news-sitemap.php';
 	require_once DAW_DIR . 'inc/tmdb-hotlink.php';
 	require_once DAW_DIR . 'inc/tmdb-remote.php';
