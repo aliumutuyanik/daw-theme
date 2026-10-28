@@ -2083,8 +2083,10 @@ function daw_ae_page_checks( $post_id, $html, $group, $type ) {
 	$og_note = $og_home ? 'og:image sitede barınan bir dosya; TMDB adresi olmalı' : '';
 	// A record TMDB has no poster for, with nothing uploaded to it, gets the
 	// site's own default share picture (the logo) from Rank Math. That is not a
-	// copy of a poster or portrait, so it waits instead of failing.
-	$og_default = $og_home && ! get_post_thumbnail_id( $post_id ) && function_exists( 'daw_remote_mode_for' ) && 'monogram' === daw_remote_mode_for( $post_id ) && function_exists( 'daw_tmdb_img_path_raw' ) && '' === daw_tmdb_img_path_raw( $post_id );
+	// copy of a poster or portrait, so it waits instead of failing. A local
+	// featured image on such a record is not shared (daw_share_image_for_record
+	// names the default instead), so it no longer blocks this.
+	$og_default = $og_home && ( 'group' === $group ? ! get_post_thumbnail_id( $post_id ) : true ) && function_exists( 'daw_remote_mode_for' ) && 'monogram' === daw_remote_mode_for( $post_id ) && function_exists( 'daw_tmdb_img_path_raw' ) && '' === daw_tmdb_img_path_raw( $post_id );
 	if ( $og_default ) {
 		$og_home = false;
 		$og_note = 'TMDB kaydında afiş yok: site varsayılan paylaşım görseli (logo) gidiyor';
