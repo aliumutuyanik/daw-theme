@@ -1171,14 +1171,19 @@ function daw_pin_rest_adopt( WP_REST_Request $r ) {
 	$alt  = 'person' === $type
 		? $d['name'] . ', ' . $d['kind']
 		: 'Poster of ' . $d['name'] . ( '' !== $d['year'] ? ' (' . $d['year'] . ')' : '' ) . ( '' !== $d['kind'] ? ', ' . $d['kind'] : '' );
-	return array(
-		'action'      => 'update',
-		'pin_id'      => $pin,
-		'post'        => $id,
+	$fields = array(
 		'title'       => $d['title'],
 		'description' => $d['desc'],
 		'alt_text'    => daw_pin_cut( daw_pin_plain( $alt ), 500 ),
 		'link'        => $d['link'],
+	);
+	return $fields + array(
+		'action' => 'update',
+		'pin_id' => $pin,
+		'post'   => $id,
+		// The same fields as one JSON body, so Make sends it to PATCH
+		// /v5/pins/{id} as it is, without escaping quotes and line breaks.
+		'patch'  => wp_json_encode( $fields ),
 	);
 }
 
