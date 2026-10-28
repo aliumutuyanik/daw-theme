@@ -28,10 +28,11 @@
  *
  * THE PICTURE
  * -----------
- * The pin is a card drawn by the site: the record's own TMDB poster (or a
- * person's TMDB profile photo) on top, the same picture the page shows, then
- * the kind, year and network, the title and the address. The owner chose the
- * TMDB pictures on 28 October 2026. A record with no confirmed TMDB picture
+ * The pin is the record's own TMDB poster (or a person's TMDB profile
+ * photo) as it is, at full size: the same picture the page shows, already in
+ * Pinterest's 2:3 shape. The owner chose this on 28 October 2026. The
+ * Pinterest screen can switch to a drawn card instead (the TMDB picture on
+ * top, kind, year, network, title and address below). A record with no confirmed TMDB picture
  * uses a featured image with an allowed licence record, and failing that the
  * drawn seal: maroon, gold frame, logo, the name in its own script.
  *
@@ -130,6 +131,7 @@ function daw_pin_settings() {
 			'to'    => 22,
 			'ramp'  => '3,5,8',  // a day: weeks 1-2, weeks 3-4, after
 			'start' => '',       // Y-m-d of the first pin, set by the first pin
+			'look'  => 'direct', // direct: the TMDB picture as it is | card: drawn card
 		)
 	);
 }
@@ -743,8 +745,22 @@ function daw_pin_render( $post_id ) {
  * @return array|WP_Error {url, path, hash, photo}
  */
 function daw_pin_image( $post_id ) {
-	$d    = daw_pin_text( $post_id );
 	$photo = daw_pin_photo( $post_id );
+
+	// The TMDB picture itself: posters and profile photos are already 2:3,
+	// which is Pinterest's own shape. Asked for at full size so the pin is
+	// sharp; nothing is drawn or stored here.
+	if ( $photo && 'tmdb' === $photo['kind'] && 'card' !== daw_pin_settings()['look'] ) {
+		$path = substr( $photo['id'], 5 );
+		return array(
+			'url'   => 'https://image.tmdb.org/t/p/original' . $path,
+			'path'  => '',
+			'hash'  => md5( 'tmdb:' . $path ),
+			'photo' => $photo,
+		);
+	}
+
+	$d     = daw_pin_text( $post_id );
 	$hash  = md5( wp_json_encode( array( $d['name'], $d['kicker'], $d['sub'], $d['native'], $photo['id'] ?? '', DAW_PIN_REV ) ) );
 	$up   = wp_upload_dir();
 	$dir  = trailingslashit( $up['basedir'] ) . 'daw-pins';
@@ -1003,6 +1019,7 @@ function daw_pin_settings_save() {
 	$s['from']  = max( 0, min( 23, (int) ( $_POST['from'] ?? 8 ) ) );
 	$s['to']    = max( $s['from'] + 1, min( 24, (int) ( $_POST['to'] ?? 22 ) ) );
 	$ramp       = array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['ramp'] ?? '3,5,8' ) ) ) );
+	$s['look']  = isset( $_POST['look'] ) && 'card' === $_POST['look'] ? 'card' : 'direct';
 	$s['ramp']  = implode( ',', array_slice( array_pad( array_filter( $ramp ), 3, 8 ), 0, 3 ) );
 	update_option( 'daw_pin', $s, false );
 	daw_pin_state_save();
@@ -1062,6 +1079,11 @@ function daw_pin_page() {
 		selected( $s['scope'], 'all', false )
 	);
 	printf( '<tr><th>Saat (New York)</th><td><input type="number" name="from" value="%d" min="0" max="23" style="width:70px"> ile <input type="number" name="to" value="%d" min="1" max="24" style="width:70px"> arası</td></tr>', (int) $s['from'], (int) $s['to'] );
+	printf(
+		'<tr><th>Görsel</th><td><select name="look"><option value="direct"%s>TMDB posteri / fotoğrafı, olduğu gibi</option><option value="card"%s>Site kartı (TMDB görseli üstte, başlık altta)</option></select> <span class="description">TMDB görseli olmayan kayıt her iki durumda da çizilen kartla gider.</span></td></tr>',
+		selected( $s['look'], 'direct', false ),
+		selected( $s['look'], 'card', false )
+	);
 	printf( '<tr><th>Günlük adet</th><td><input type="text" name="ramp" value="%s" style="width:90px"> <span class="description">ilk iki hafta, sonraki iki hafta, sonrası%s</span></td></tr>', esc_attr( $s['ramp'] ), '' !== $s['start'] ? esc_html( ' · ilk pin ' . $s['start'] ) : '' );
 	echo '</table>';
 	submit_button( 'Kaydet' );
@@ -1083,7 +1105,10 @@ function daw_pin_page() {
 			continue;
 		}
 		$d   = daw_pin_text( $id );
-		$src = wp_nonce_url( admin_url( 'admin-post.php?action=daw_pin_preview&post=' . $id ), 'daw_pin_preview' );
+		$ph  = daw_pin_photo( $id );
+		$src = ( $ph && 'tmdb' === $ph['kind'] && 'card' !== $s['look'] )
+			? 'https://image.tmdb.org/t/p/w342' . substr( $ph['id'], 5 )
+			: wp_nonce_url( admin_url( 'admin-post.php?action=daw_pin_preview&post=' . $id ), 'daw_pin_preview' );
 		printf(
 			'<div style="width:220px"><img src="%s" width="200" height="300" style="display:block;aspect-ratio:2/3;background:#eee" loading="lazy" alt=""><p style="margin:6px 0 0;font-weight:600">%s</p><p style="margin:2px 0;color:#646970;font-size:12px">%s</p></div>',
 			esc_url( $src ),
