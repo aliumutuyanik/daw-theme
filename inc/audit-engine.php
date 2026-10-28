@@ -332,6 +332,11 @@ function daw_ae_native_script_ok( $s, $country ) {
 	// What is wrong is a native title with NONE of the country's own script,
 	// so a Latin letter is only a fault when the native script is missing.
 	$c = strtolower( $country );
+	// Vietnamese, Filipino, Indonesian and Malay are written in Latin letters,
+	// so a Latin native title is the right one there (Forever Young 2, 1.75.87).
+	if ( preg_match( '/vietnam|philippines|indonesia|malaysia/', $c ) ) {
+		return true;
+	}
 	if ( preg_match( '/[A-Za-z]/', $s ) && ! preg_match( '/[\p{Hangul}\p{Hiragana}\p{Katakana}\p{Han}\p{Thai}]/u', $s ) ) {
 		return false;
 	}

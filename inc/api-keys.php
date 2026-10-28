@@ -356,7 +356,9 @@ function daw_kobis_rules( $post_id ) {
 	// The API search did not single the film out (more than one hit, or a
 	// spacing difference in the title), but a person opened its KOBIS page
 	// and wrote what it says in _daw_ok['kobis_check'] (1.75.62).
-	if ( 'none' === ( $cache['v'] ?? 'none' ) ) {
+	// 1.75.87: also when KOBIS disagrees and a person checked the date against
+	// KOBIS and the other sources and wrote the outcome down (The Romantic President).
+	if ( in_array( $cache['v'] ?? 'none', array( 'none', 'diff' ), true ) ) {
 		$okn = get_post_meta( $post_id, '_daw_ok', true );
 		if ( is_array( $okn ) && ! empty( $okn['kobis_check'] ) && false !== strpos( (string) $okn['kobis_check'], 'kobis.or.kr' ) ) {
 			$r = array( 'ok', 'Elle doğrulandı: ' . mb_substr( (string) $okn['kobis_check'], 0, 120 ) );
