@@ -32,7 +32,14 @@
  * photo) as it is, at full size: the same picture the page shows, already in
  * Pinterest's 2:3 shape. The owner chose this on 28 October 2026. The
  * Pinterest screen can switch to a drawn card instead (the TMDB picture on
- * top, kind, year, network, title and address below). A record with no confirmed TMDB picture
+ * top, kind, year, network, title and address below).
+ *
+ * A SECOND PIN, LATER
+ * -------------------
+ * A page whose first pin was the TMDB picture gets a second pin at least 14
+ * days later, with the drawn card: same page, a different picture, which is
+ * what Pinterest asks of a second pin. Every third pin of the day is one of
+ * these once pages are due; nothing gets a third. A record with no confirmed TMDB picture
  * uses a featured image with an allowed licence record, and failing that the
  * drawn seal: maroon, gold frame, logo, the name in its own script.
  *
@@ -58,13 +65,23 @@ const DAW_PIN_REV  = '2'; // bump when the card layout changes
 /* ================================================================ boards === */
 
 /**
- * The boards, by key. Ids are the boards made on 28 October 2026 on
+ * The boards, by key. Board names are the searched phrases (Ubersuggest, US,
+ * 28 Oct 2026): "korean drama netflix" 135k a month, "romantic comedy korean
+ * drama" 18k, "horror korean movies" 12k, "korean actors" 15k, "korean
+ * actresses" 8k, "korean food" 246k. 'kind' is the phrase a pin's title uses
+ * on that board. Ids are the boards made on 28 October 2026 on
  * pinterest.com/discoverasianworld; "Korean Actors" is the account's old board,
  * kept with its pins and given a description.
  */
 function daw_pin_boards() {
 	$boards = array(
 		'kdrama'   => array( 'name' => 'K-Drama Recommendations', 'id' => '988118043183707540' ),
+		'romance'  => array( 'name' => 'Romantic K-Dramas', 'id' => '988118043183707557', 'kind' => 'Romantic K-Drama' ),
+		'thriller' => array( 'name' => 'Thriller and Mystery K-Dramas', 'id' => '988118043183707558', 'kind' => 'Thriller K-Drama' ),
+		'sageuk'   => array( 'name' => 'Historical K-Dramas', 'id' => '988118043183707559', 'kind' => 'Historical K-Drama' ),
+		'fantasy'  => array( 'name' => 'Fantasy K-Dramas', 'id' => '988118043183707560', 'kind' => 'Fantasy K-Drama' ),
+		'netflix'  => array( 'name' => 'Netflix K-Dramas to Watch', 'id' => '988118043183707561' ),
+		'khorror'  => array( 'name' => 'Korean Horror and Thriller Movies', 'id' => '988118043183707562', 'kind' => 'Korean Thriller Movie' ),
 		'kmovie'   => array( 'name' => 'Korean Movies to Watch', 'id' => '988118043183707541' ),
 		'actor'    => array( 'name' => 'Korean Actors', 'id' => '988118043182946887' ),
 		'actress'  => array( 'name' => 'Korean Actresses', 'id' => '988118043183707542' ),
@@ -93,9 +110,28 @@ function daw_pin_board_key( $post_id ) {
 
 	switch ( $type ) {
 		case 'drama':
-			return $korean ? 'kdrama' : 'asian';
+			if ( ! $korean ) {
+				return 'asian';
+			}
+			// The most particular genre board wins, so the romance board
+			// (318 records carry Romance) does not swallow the others.
+			$g = daw_pin_genre_slugs( $post_id );
+			foreach ( array(
+				'sageuk'   => array( 'historical', 'period-drama' ),
+				'fantasy'  => array( 'fantasy', 'supernatural', 'time-travel' ),
+				'thriller' => array( 'thriller', 'mystery', 'crime', 'psychological', 'horror' ),
+				'romance'  => array( 'romance', 'romantic-comedy' ),
+			) as $board => $slugs ) {
+				if ( array_intersect( $slugs, $g ) ) {
+					return $board;
+				}
+			}
+			return daw_pin_on_netflix( $post_id ) ? 'netflix' : 'kdrama';
 		case 'film':
-			return $korean ? 'kmovie' : 'asian';
+			if ( ! $korean ) {
+				return 'asian';
+			}
+			return array_intersect( array( 'horror', 'thriller', 'crime', 'mystery', 'zombie' ), daw_pin_genre_slugs( $post_id ) ) ? 'khorror' : 'kmovie';
 		case 'person':
 			if ( ! $korean ) {
 				return 'asian';
@@ -111,6 +147,25 @@ function daw_pin_board_key( $post_id ) {
 			// variety, group, culture, myth, travel, quiz, lists.
 			return 'kculture';
 	}
+}
+
+function daw_pin_genre_slugs( $post_id ) {
+	$terms = get_the_terms( $post_id, 'dw_genre' );
+	return ( $terms && ! is_wp_error( $terms ) ) ? wp_list_pluck( $terms, 'slug' ) : array();
+}
+
+/** US streaming services for the record (TMDB / JustWatch), as names. */
+function daw_pin_streams( $post_id ) {
+	return function_exists( 'daw_wp_names' ) ? daw_wp_names( $post_id, 'US', 'stream' ) : array();
+}
+
+function daw_pin_on_netflix( $post_id ) {
+	foreach ( daw_pin_streams( $post_id ) as $n ) {
+		if ( false !== stripos( $n, 'netflix' ) ) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function daw_pin_board_id( $key ) {
@@ -277,19 +332,83 @@ function daw_pin_pick() {
 	$last_post = $t['pins'] ? (int) end( $t['pins'] )[0] : (int) get_option( 'daw_pin_last', 0 );
 	$last_key  = $last_post ? daw_pin_board_key( $last_post ) : '';
 
+	// Every third pin of the day goes to a page that already has its first
+	// pin, with the drawn card this time; so do all pins once every page has
+	// its first one.
+	$second = daw_pin_second_candidates();
+	if ( $second && 2 === count( $t['pins'] ) % 3 ) {
+		return array( $second[0], 'card' );
+	}
+
 	$fallback = 0;
 	foreach ( daw_pin_candidates() as $id ) {
 		if ( ! daw_pin_ready( $id ) ) {
 			continue;
 		}
 		if ( daw_pin_board_key( $id ) !== $last_key ) {
-			return $id;
+			return array( $id, '' );
 		}
 		if ( ! $fallback ) {
 			$fallback = $id;
 		}
 	}
-	return $fallback;
+	if ( $fallback ) {
+		return array( $fallback, '' );
+	}
+	return $second ? array( $second[0], 'card' ) : array( 0, '' );
+}
+
+/**
+ * Pages ready for their second pin: one pin so far, made with the TMDB
+ * picture itself, at least 14 days ago, and a drawn card that is not that
+ * picture. Most visited first.
+ *
+ * @return int[]
+ */
+function daw_pin_second_candidates() {
+	$ids = get_posts(
+		array(
+			'post_type'              => 'post',
+			'post_status'            => 'publish',
+			'posts_per_page'         => -1,
+			'fields'                 => 'ids',
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			'meta_query'             => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+				array( 'key' => DAW_PIN_LOG, 'compare' => 'EXISTS' ),
+				array( 'key' => DAW_PIN_SKIP, 'compare' => 'NOT EXISTS' ),
+			),
+		)
+	);
+	if ( ! $ids ) {
+		return array();
+	}
+	update_meta_cache( 'post', $ids );
+	$out = array();
+	foreach ( $ids as $id ) {
+		$log = get_post_meta( $id, DAW_PIN_LOG, true );
+		$ok  = array_values( array_filter( is_array( $log ) ? $log : array(), static function ( $e ) {
+			return 'atlandi' !== ( $e['pin'] ?? '' );
+		} ) );
+		if ( 1 !== count( $ok ) || (int) $ok[0]['at'] > time() - 14 * DAY_IN_SECONDS ) {
+			continue;
+		}
+		$photo = daw_pin_photo( $id );
+		if ( ! $photo || 'tmdb' !== $photo['kind'] || md5( 'tmdb:' . substr( $photo['id'], 5 ) ) !== $ok[0]['img'] ) {
+			continue;
+		}
+		if ( '' === daw_pin_board_id( daw_pin_board_key( $id ) ) ) {
+			continue;
+		}
+		$out[] = (int) $id;
+	}
+	usort(
+		$out,
+		static function ( $a, $b ) {
+			return (int) get_post_meta( $b, 'daw_views_30', true ) - (int) get_post_meta( $a, 'daw_views_30', true );
+		}
+	);
+	return $out;
 }
 
 /**
@@ -451,7 +570,8 @@ function daw_pin_text( $post_id ) {
 	// Title: the searched pattern first, shorter forms when it runs long.
 	$tries = array( $name );
 	if ( $title_like ) {
-		$base  = $name . ( '' !== $year ? ' (' . $year . ')' : '' ) . ' ' . $kind;
+		$bk    = daw_pin_boards()[ daw_pin_board_key( $post_id ) ]['kind'] ?? $kind;
+		$base  = $name . ( '' !== $year ? ' (' . $year . ')' : '' ) . ' ' . $bk;
 		$tries = array( $base . ': Cast, Story and Where to Watch', $base . ': Cast and Story', $base, $name );
 	} elseif ( 'person' === $type ) {
 		$tries = array( $name . ': ' . $kind . ' Profile, Dramas and Movies', $name . ': ' . $kind . ' Profile', $name );
@@ -479,6 +599,10 @@ function daw_pin_text( $post_id ) {
 	if ( $title_like && $net ) {
 		$facts[] = 'Network: ' . $net[0] . '.';
 	}
+	$streams = $title_like ? array_slice( daw_pin_streams( $post_id ), 0, 3 ) : array();
+	if ( $streams ) {
+		$facts[] = 'Stream it in the US on ' . implode( ', ', $streams ) . '.';
+	}
 	$eps = (int) get_post_meta( $post_id, 'daw_episodes', true );
 	if ( 'drama' === $type && $eps > 0 ) {
 		$facts[] = $eps . ' episodes.';
@@ -496,6 +620,9 @@ function daw_pin_text( $post_id ) {
 		'myth'    => array( 'koreanmythology', 'koreanculture', 'korea' ),
 	);
 	$hash = $tags[ $type ] ?? array( 'koreanculture', 'korea', 'kdrama' );
+	if ( $title_like && daw_pin_on_netflix( $post_id ) ) {
+		$hash[] = 'drama' === $type ? 'netflixkdrama' : 'netflix';
+	}
 	if ( 'person' === $type && 'actress' === daw_pin_board_key( $post_id ) ) {
 		$hash[1] = 'koreanactress';
 	}
@@ -744,13 +871,14 @@ function daw_pin_render( $post_id ) {
  *
  * @return array|WP_Error {url, path, hash, photo}
  */
-function daw_pin_image( $post_id ) {
+function daw_pin_image( $post_id, $look = '' ) {
 	$photo = daw_pin_photo( $post_id );
+	$look  = '' !== $look ? $look : daw_pin_settings()['look'];
 
 	// The TMDB picture itself: posters and profile photos are already 2:3,
 	// which is Pinterest's own shape. Asked for at full size so the pin is
 	// sharp; nothing is drawn or stored here.
-	if ( $photo && 'tmdb' === $photo['kind'] && 'card' !== daw_pin_settings()['look'] ) {
+	if ( $photo && 'tmdb' === $photo['kind'] && 'card' !== $look ) {
 		$path = substr( $photo['id'], 5 );
 		return array(
 			'url'   => 'https://image.tmdb.org/t/p/original' . $path,
@@ -790,8 +918,8 @@ function daw_pin_image( $post_id ) {
 }
 
 /** The whole pin, as Make sends it to Pinterest. */
-function daw_pin_item( $post_id ) {
-	$img = daw_pin_image( $post_id );
+function daw_pin_item( $post_id, $look = '' ) {
+	$img = daw_pin_image( $post_id, $look );
 	if ( is_wp_error( $img ) ) {
 		return $img;
 	}
@@ -799,10 +927,12 @@ function daw_pin_item( $post_id ) {
 	$key = daw_pin_board_key( $post_id );
 
 	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
-	if ( $img['photo'] && 'tmdb' === $img['photo']['kind'] ) {
+	if ( $img['photo'] && 'tmdb' === $img['photo']['kind'] && '' === $img['path'] ) {
 		$alt = 'person' === $type
 			? $d['name'] . ', ' . $d['kind'] . ', photo'
 			: 'Poster of ' . $d['name'] . ( '' !== $d['year'] ? ' (' . $d['year'] . ')' : '' ) . ', ' . $d['kind'];
+	} elseif ( $img['photo'] && 'tmdb' === $img['photo']['kind'] ) {
+		$alt = ( 'person' === $type ? $d['name'] . ', ' . $d['kind'] : 'Poster of ' . $d['name'] . ( '' !== $d['year'] ? ' (' . $d['year'] . ')' : '' ) ) . ', with the title card from Discover Asian World';
 	} elseif ( $img['photo'] ) {
 		$alt = trim( (string) get_post_meta( $img['photo']['att'], '_wp_attachment_image_alt', true ) );
 		$alt = '' !== $alt ? $alt . '. ' . $d['name'] . ', ' . $d['kind'] : $d['name'] . ', ' . $d['kind'];
@@ -839,8 +969,8 @@ function daw_pin_rest_next( WP_REST_Request $r ) {
 	// A record handed out and not written back yet is handed out again, not a
 	// second record: Make may ask twice before Pinterest has answered.
 	$held = get_option( 'daw_pin_held', array() );
-	if ( is_array( $held ) && ! empty( $held['id'] ) && time() - (int) $held['at'] < 30 * MINUTE_IN_SECONDS && ! get_post_meta( (int) $held['id'], DAW_PIN_LOG, true ) ) {
-		$item = daw_pin_item( (int) $held['id'] );
+	if ( is_array( $held ) && ! empty( $held['id'] ) && time() - (int) $held['at'] < 30 * MINUTE_IN_SECONDS && daw_pin_log_count( (int) $held['id'] ) === (int) ( $held['n'] ?? 0 ) ) {
+		$item = daw_pin_item( (int) $held['id'], (string) ( $held['look'] ?? '' ) );
 		return is_wp_error( $item ) ? array( 'item' => null, 'why' => $item->get_error_message() ) : array( 'item' => $item );
 	}
 
@@ -848,15 +978,20 @@ function daw_pin_rest_next( WP_REST_Request $r ) {
 	if ( '' !== $why && ! $r->get_param( 'force' ) ) {
 		return array( 'item' => null, 'why' => $why );
 	}
-	$id = daw_pin_pick();
+	list( $id, $look ) = daw_pin_pick();
 	if ( ! $id ) {
 		return array( 'item' => null, 'why' => 'nothing ready' );
 	}
-	$item = daw_pin_item( $id );
+	$item = daw_pin_item( $id, $look );
 	if ( is_wp_error( $item ) ) {
 		return array( 'item' => null, 'why' => $item->get_error_message() );
 	}
-	update_option( 'daw_pin_held', array( 'id' => $id, 'at' => time() ), false );
+	// Never the same picture on the same page twice.
+	$log = get_post_meta( $id, DAW_PIN_LOG, true );
+	if ( is_array( $log ) && in_array( $item['img'], wp_list_pluck( $log, 'img' ), true ) ) {
+		return array( 'item' => null, 'why' => 'picture already pinned for this page' );
+	}
+	update_option( 'daw_pin_held', array( 'id' => $id, 'at' => time(), 'look' => $look, 'n' => daw_pin_log_count( $id ) ), false );
 	return array( 'item' => $item );
 }
 
@@ -871,9 +1006,16 @@ function daw_pin_rest_done( WP_REST_Request $r ) {
 	return array( 'ok' => true, 'id' => $id, 'pin_id' => $pin );
 }
 
+function daw_pin_log_count( $id ) {
+	$log = get_post_meta( $id, DAW_PIN_LOG, true );
+	return is_array( $log ) ? count( $log ) : 0;
+}
+
 /** Write a pin (or a refusal, pin "atlandi") into the record and the day. */
 function daw_pin_record( $id, $pin ) {
-	$img = daw_pin_image( $id );
+	$held = get_option( 'daw_pin_held', array() );
+	$look = ( is_array( $held ) && (int) ( $held['id'] ?? 0 ) === (int) $id ) ? (string) ( $held['look'] ?? '' ) : '';
+	$img  = daw_pin_image( $id, $look );
 	$log = get_post_meta( $id, DAW_PIN_LOG, true );
 	$log = is_array( $log ) ? $log : array();
 	$log[] = array(
@@ -916,6 +1058,7 @@ function daw_pin_state() {
 		'cap'     => daw_pin_cap_today(),
 		'wait'    => daw_pin_wait_reason(),
 		'start'   => daw_pin_settings()['start'],
+		'second'  => count( daw_pin_second_candidates() ),
 		'plan'    => daw_pin_plan( 10 ),
 		'at'      => time(),
 	);
