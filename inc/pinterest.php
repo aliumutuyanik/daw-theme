@@ -1246,7 +1246,10 @@ function daw_pin_save_due() {
 				break;
 			}
 		}
-		if ( ! $pin ) {
+		// The account's old pins carry their old titles ("Gong Yoo 52") into
+		// every board they are saved to; those pages get the drawn card as a
+		// new pin instead, and only pins made here are saved further.
+		if ( ! $pin || 'old' === ( $pin['board'] ?? '' ) ) {
 			continue;
 		}
 		$saves = get_post_meta( $id, DAW_PIN_SAVES, true );
