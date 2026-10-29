@@ -1151,7 +1151,11 @@ function daw_ae_audit( $post_id ) {
 				$items[] = array( 'Kaydı olmayan varyete', count( $vmiss ) . ' program', 'ok', 'Bilgi: ' . $t( $vmiss ) );
 			}
 			if ( $soon ) {
-				$items[] = array( 'Yeni / yakında', count( $soon ) . ' iş', 'wait', 'Takip: ' . $t( $soon ) );
+				// A coming work is something to watch, not a gap: a missing
+				// record already shows on the line above. As a "wait" it kept a
+				// finished person page off 100% until the work aired (owner,
+				// 29 Oct 2026: "hepsi bittiyse tam bittiye geçmiyor mu").
+				$items[] = array( 'Yeni / yakında', count( $soon ) . ' iş', 'ok', 'Bilgi, takip: ' . $t( $soon ) );
 			}
 		}
 		$sections['coverage'] = array( 'label' => 'Kapsam (TMDB ile karşılaştırma)', 'items' => $items );
