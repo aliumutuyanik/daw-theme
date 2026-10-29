@@ -70,6 +70,17 @@ function daw_pa_http( $post_id ) {
 	if ( ! $url ) {
 		return array( 'ok' => false, 'err' => 'permalink yok' );
 	}
+	// The record audit has usually just read this page in the same request
+	// (daw_ae_page_html keeps it); a second fetch of the same page was a
+	// second or more of the audit screen's load time (owner, 29 Oct 2026:
+	// "panelde sayfaların açılması çok yavaş"). Only a failed read falls
+	// through to a fetch of its own, which reports the HTTP error.
+	if ( function_exists( 'daw_ae_page_html' ) ) {
+		$body = (string) daw_ae_page_html( $post_id );
+		if ( '' !== $body ) {
+			return array( 'ok' => true, 'code' => 200, 'body' => $body, 'url' => $url, 'bytes' => strlen( $body ) );
+		}
+	}
 	$fetch_url = add_query_arg( 'daw_cb', wp_generate_password( 6, false ), $url );
 
 	$res = wp_remote_get(

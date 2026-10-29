@@ -1119,11 +1119,36 @@ function daw_kc_store_report_cron() {
  */
 function daw_kc_data_cached() {
 	$key = 'daw_kc_d_' . ( defined( 'DAW_VERSION' ) ? DAW_VERSION : '0' );
-	$d   = isset( $_GET['daw_kc'] ) ? false : get_transient( $key ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-	if ( ! is_array( $d ) ) {
-		$d = daw_kc_data();
-		set_transient( $key, $d, 5 * MINUTE_IN_SECONDS );
+	// ?daw_kc=1 still builds the overview on the spot.
+	if ( isset( $_GET['daw_kc'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		return daw_kc_refresh();
 	}
+	$d = get_transient( $key );
+	if ( is_array( $d ) ) {
+		return $d;
+	}
+	// BUILT OFF THE PAGE (1.77.4). Building the overview reads every
+	// sitemap row, every licence and every link record: three seconds and
+	// 400 MB on this host, paid by whoever opened the panel after the five
+	// minute cache ran out (profiler, 29 Oct 2026). The page now shows the
+	// last overview at once and a background job builds the next one.
+	$last = get_option( 'daw_kc_d_last' );
+	if ( is_array( $last ) ) {
+		if ( ! wp_next_scheduled( 'daw_kc_refresh' ) ) {
+			wp_schedule_single_event( time(), 'daw_kc_refresh' );
+		}
+		return $last;
+	}
+	return daw_kc_refresh();
+}
+
+/** Build the overview and keep it: 30 minutes as the fresh copy, and as the last copy until the next build. */
+add_action( 'daw_kc_refresh', 'daw_kc_refresh' );
+add_action( 'daw_fix_tick', 'daw_kc_refresh', 95 );
+function daw_kc_refresh() {
+	$d = daw_kc_data();
+	set_transient( 'daw_kc_d_' . ( defined( 'DAW_VERSION' ) ? DAW_VERSION : '0' ), $d, 30 * MINUTE_IN_SECONDS );
+	update_option( 'daw_kc_d_last', $d, false );
 	return $d;
 }
 
