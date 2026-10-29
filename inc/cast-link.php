@@ -97,6 +97,20 @@ function daw_castlink_batch( $limit = DAW_CASTLINK_BATCH ) {
 			&& in_array( daw_get_type( $tid ), array( 'drama', 'film', 'variety', 'anime' ), true )
 			&& in_array( daw_get_type( $pid ), array( 'person', 'group' ), true );
 
+		// A credit the owner kept out of the cast stays out: someone only "in
+		// talks" (Cha Eun Woo on Seorabeol Knife, 29 Oct 2026) is in TMDB's
+		// cast list, and this job put him back an hour after he was removed.
+		// The title's `_daw_ok` names him by TMDB person id ("cov:<id>", the
+		// key the audit already reads) or by record id ("nocast:<id>").
+		if ( $ok ) {
+			$tok  = get_post_meta( $tid, '_daw_ok', true );
+			$tok  = is_array( $tok ) ? $tok : array();
+			$ptmd = (string) get_post_meta( $pid, 'daw_tmdb_id', true );
+			if ( isset( $tok[ 'nocast:' . $pid ] ) || ( '' !== $ptmd && isset( $tok[ 'cov:' . $ptmd ] ) ) ) {
+				$ok = false;
+			}
+		}
+
 		if ( ! $ok ) {
 			$skip[ $tid . ':' . $pid ] = 1;
 			++$skipped;
