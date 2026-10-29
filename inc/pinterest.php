@@ -467,17 +467,54 @@ function daw_pin_candidates() {
 		return array();
 	}
 	update_meta_cache( 'post', $ids );
-	usort(
-		$ids,
-		static function ( $a, $b ) {
-			$d = (int) get_post_meta( $b, 'daw_views_30', true ) - (int) get_post_meta( $a, 'daw_views_30', true );
-			if ( 0 === $d ) {
-				$d = (int) get_post_meta( $b, 'daw_views_all', true ) - (int) get_post_meta( $a, 'daw_views_all', true );
-			}
-			return 0 !== $d ? $d : $b - $a;
-		}
-	);
+	usort( $ids, 'daw_pin_order' );
 	return array_map( 'intval', $ids );
+}
+
+/**
+ * How soon a record should go, 0 first: what people are searching this week
+ * before what they searched last month (owner, 29 Oct 2026).
+ *
+ * 0  a drama or variety show on air now, or news from the last three days
+ * 1  a drama or movie starting in the next 30 days
+ * 2  one that started or ended in the last 120 days
+ * 3  everything else
+ */
+function daw_pin_tier( $post_id ) {
+	static $memo = array();
+	if ( isset( $memo[ $post_id ] ) ) {
+		return $memo[ $post_id ];
+	}
+	$type = function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
+	$now  = time();
+	$tier = 3;
+	if ( 'news' === $type ) {
+		$tier = (int) get_post_time( 'U', true, $post_id ) > $now - 3 * DAY_IN_SECONDS ? 0 : 3;
+	} elseif ( in_array( $type, array( 'drama', 'film', 'variety' ), true ) ) {
+		$status = function_exists( 'daw_airing_status' ) ? daw_airing_status( $post_id )['slug'] : '';
+		$start  = (int) get_post_meta( $post_id, 'daw_aired_start', true );
+		$end    = (int) get_post_meta( $post_id, 'daw_aired_end', true );
+		if ( 'onair' === $status && 'film' !== $type ) {
+			$tier = 0;
+		} elseif ( $start > $now && $start < $now + 30 * DAY_IN_SECONDS ) {
+			$tier = 1;
+		} elseif ( max( $start, $end ) > $now - 120 * DAY_IN_SECONDS && max( $start, $end ) <= $now + DAY_IN_SECONDS ) {
+			$tier = 2;
+		}
+	}
+	return $memo[ $post_id ] = $tier;
+}
+
+/** usort callback: tier, then visits in the last 30 days, then all visits. */
+function daw_pin_order( $a, $b ) {
+	$d = daw_pin_tier( $a ) - daw_pin_tier( $b );
+	if ( 0 === $d ) {
+		$d = (int) get_post_meta( $b, 'daw_views_30', true ) - (int) get_post_meta( $a, 'daw_views_30', true );
+	}
+	if ( 0 === $d ) {
+		$d = (int) get_post_meta( $b, 'daw_views_all', true ) - (int) get_post_meta( $a, 'daw_views_all', true );
+	}
+	return 0 !== $d ? $d : $b - $a;
 }
 
 /** Can this one go now? Checks that are too slow to put in the query. */
@@ -530,15 +567,21 @@ function daw_pin_pick() {
 	// Every third pin of the day goes to a page that already has its first
 	// pin, with the drawn card this time; so do all pins once every page has
 	// its first one.
+	$ready = array_values( array_filter( daw_pin_candidates(), 'daw_pin_ready' ) );
 	$second = daw_pin_second_candidates();
-	if ( $second && 2 === count( $t['pins'] ) % 3 ) {
+	// A show on air or about to start never waits for a second pin.
+	$hot = $ready && daw_pin_tier( $ready[0] ) <= 1;
+	if ( $second && 2 === count( $t['pins'] ) % 3 && ( ! $hot || daw_pin_tier( $second[0] ) <= daw_pin_tier( $ready[0] ) ) ) {
 		return array( $second[0], 'card' );
 	}
 
 	$fallback = 0;
-	foreach ( daw_pin_candidates() as $id ) {
-		if ( ! daw_pin_ready( $id ) ) {
-			continue;
+	// Never the same board twice in a row while the same tier has something
+	// for another board; a show on air goes before a different board's
+	// older record.
+	foreach ( $ready as $id ) {
+		if ( $fallback && daw_pin_tier( $id ) > daw_pin_tier( $fallback ) ) {
+			break;
 		}
 		if ( daw_pin_board_key( $id ) !== $last_key ) {
 			return array( $id, '' );
@@ -600,12 +643,7 @@ function daw_pin_second_candidates() {
 		}
 		$out[] = (int) $id;
 	}
-	usort(
-		$out,
-		static function ( $a, $b ) {
-			return (int) get_post_meta( $b, 'daw_views_30', true ) - (int) get_post_meta( $a, 'daw_views_30', true );
-		}
-	);
+	usort( $out, 'daw_pin_order' );
 	return $out;
 }
 
@@ -639,6 +677,9 @@ function daw_pin_plan( $limit = 60 ) {
 	while ( $queue && count( $order ) < $limit ) {
 		$at = 0;
 		foreach ( $queue as $i => $q ) {
+			if ( daw_pin_tier( $q[0] ) > daw_pin_tier( $queue[0][0] ) ) {
+				break;
+			}
 			if ( $q[1] !== $last ) {
 				$at = $i;
 				break;
@@ -1590,7 +1631,8 @@ function daw_pin_state() {
 	$skip   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key = %s", DAW_PIN_SKIP ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	$t      = daw_pin_today();
 	return array(
-		'waiting' => count( daw_pin_candidates() ),
+		'waiting' => count( $cand = daw_pin_candidates() ),
+		'hot'     => count( array_filter( $cand, static fn( $id ) => daw_pin_tier( $id ) <= 1 ) ),
 		'pinned'  => $pinned,
 		'skipped' => $skip,
 		'today'   => count( $t['pins'] ),
