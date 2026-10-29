@@ -159,7 +159,22 @@ $n_done = count( $data['done'] );
 			<?php else : ?>
 				<ul class="daw-cal2-rail">
 					<?php
-					foreach ( $data['onair'] as $row ) :
+					// Soonest next episode first, so the rail reads as this
+					// week's schedule; titles with no dated episode keep their
+					// order at the end.
+					$now_rows = $data['onair'];
+					$nx_key   = array();
+					foreach ( $now_rows as $k => $nr ) {
+						$ne = function_exists( 'daw_calendar_next_ep' ) ? daw_calendar_next_ep( (int) $nr['id'] ) : null;
+						$nx_key[ $k ] = $ne ? $ne['date'] : '9999-99-99';
+					}
+					uksort(
+						$now_rows,
+						static function ( $a, $b ) use ( $nx_key ) {
+							return ( $nx_key[ $a ] <=> $nx_key[ $b ] ) ?: ( $a <=> $b );
+						}
+					);
+					foreach ( $now_rows as $row ) :
 						$id      = (int) $row['id'];
 						$eps     = (int) daw_field_raw( $id, 'daw_episodes' );
 						$net     = daw_first_term_name( $id, 'dw_network' );
@@ -177,7 +192,29 @@ $n_done = count( $data['done'] );
 							<a class="daw-cal2-pic" href="<?php echo esc_url( get_permalink( $id ) ); ?>" tabindex="-1" aria-hidden="true"><span class="daw-poster"><?php echo daw_poster( $id, 'medium', '170px' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span><span class="daw-cal2-live"><?php esc_html_e( 'On air', 'daw' ); ?></span></a>
 							<a class="t" href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a>
 							<span class="m"><?php echo esc_html( implode( ' · ', $facts ) ); ?></span>
-							<?php if ( $row['when'] <= time() && $row['when'] ) : ?>
+							<?php
+							// When it airs: the sourced airing days, then the next
+							// dated episode from the record's own list.
+							$days = trim( (string) daw_field_raw( $id, 'daw_airing_days' ) );
+							$nxt  = function_exists( 'daw_calendar_next_ep' ) ? daw_calendar_next_ep( $id ) : null;
+							if ( '' !== $days ) :
+								?>
+								<span class="m daw-cal2-days"><?php echo esc_html( $days ); ?></span>
+							<?php endif; ?>
+							<?php if ( $nxt ) : ?>
+								<span class="m daw-cal2-next">
+									<?php
+									if ( $nxt['today'] ) {
+										/* translators: %s: episode number */
+										echo esc_html( '' !== $nxt['no'] ? sprintf( __( 'Episode %s today', 'daw' ), $nxt['no'] ) : __( 'New episode today', 'daw' ) );
+									} else {
+										$nts = strtotime( $nxt['date'] . ' 00:00:00 UTC' );
+										/* translators: 1: episode number, 2: date */
+										echo esc_html( '' !== $nxt['no'] ? sprintf( __( 'Episode %1$s on %2$s', 'daw' ), $nxt['no'], daw_calendar_fmt( $nts, 'D j M' ) ) : sprintf( /* translators: %s: date */ __( 'Next episode %s', 'daw' ), daw_calendar_fmt( $nts, 'D j M' ) ) );
+									}
+									?>
+								</span>
+							<?php elseif ( $row['when'] <= time() && $row['when'] ) : ?>
 								<span class="m"><?php echo esc_html( sprintf( /* translators: %s: date */ __( 'Premiered %s', 'daw' ), daw_calendar_fmt( $row['when'], 'j M' ) ) ); ?></span>
 							<?php endif; ?>
 						</li>

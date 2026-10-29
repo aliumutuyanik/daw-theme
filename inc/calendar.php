@@ -205,6 +205,34 @@ function daw_calendar_index() {
 	return $out;
 }
 
+/**
+ * The next episode a record's own episode list dates today or later, for the
+ * calendar's Airing now cards (owner 29 Oct 2026: "ne zaman ne yayınlanıyor
+ * vermen lazım"). Only a dated row counts; no weekday is projected forward.
+ *
+ * @return array{no:string, date:string, today:bool}|null
+ */
+function daw_calendar_next_ep( $id ) {
+	$dates = get_post_meta( $id, 'daw_ep_date', true );
+	if ( ! is_array( $dates ) ) {
+		return null;
+	}
+	$nos   = get_post_meta( $id, 'daw_ep_no', true );
+	$nos   = is_array( $nos ) ? array_values( $nos ) : array();
+	$today = current_time( 'Y-m-d' );
+	$best  = null;
+	foreach ( array_values( $dates ) as $i => $d ) {
+		$d = substr( trim( (string) $d ), 0, 10 );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) || $d < $today ) {
+			continue;
+		}
+		if ( null === $best || $d < $best['date'] ) {
+			$best = array( 'no' => trim( (string) ( $nos[ $i ] ?? '' ) ), 'date' => $d, 'today' => $d === $today );
+		}
+	}
+	return $best;
+}
+
 /** Rows of an index list narrowed to one type; 'all' keeps everything. */
 function daw_calendar_only( $rows, $type ) {
 	if ( 'all' === $type ) {
