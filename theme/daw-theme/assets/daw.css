@@ -8216,6 +8216,8 @@ a.daw-seen-src:hover { color: var(--accent); }
 .daw-upnext-list a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .daw-upnext-badge { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); color: var(--accent); }
 .daw-upnext-badge.is-on { background: #1a7f37; border-color: #1a7f37; color: #fff; }
+.daw-upnext-badge.is-talks { background: #fff7e6; border-color: #e0b24a; color: #7a5a12; }
+.daw-upnext-badge.is-event { background: var(--band); color: var(--ink); }
 .daw-upnext-role, .daw-upnext-when { color: var(--muted); font-size: .9rem; }
 .daw-upnext-when { font-variant-numeric: tabular-nums; }
 .daw-upnext-note { margin: 10px 0 0; color: var(--muted); font-size: .85rem; }

@@ -334,13 +334,22 @@ function daw_person_upcoming( $person_id ) {
 				continue; // the same project named by two stories
 			}
 			$have[ $key ] = true;
+			$labels       = array(
+				'onair'    => __( 'On air now', 'daw' ),
+				'talks'    => __( 'In talks', 'daw' ),
+				'filming'  => __( 'Filming', 'daw' ),
+				'event'    => __( 'Coming up', 'daw' ),
+				'upcoming' => __( 'Upcoming', 'daw' ),
+			);
 			$items[]      = array(
 				'title' => $row['title'],
 				'url'   => $row['url'],
-				'label' => 'onair' === $row['label'] ? __( 'On air now', 'daw' ) : __( 'Upcoming', 'daw' ),
+				'label' => $labels[ $row['label'] ] ?? __( 'Upcoming', 'daw' ),
+				'kind'  => $row['label'],
 				'where' => $row['where'],
 				'line'  => 'onair' === $row['label'] ? '' : $row['line'],
-				'sort'  => $row['sort'],
+				// Confirmed work first, then events, then talks.
+				'sort'  => ( 'talks' === $row['label'] ? 2 * PHP_INT_MAX / 3 : 0 ) + min( $row['sort'], PHP_INT_MAX / 3 ),
 				'role'  => '',
 			);
 		}
@@ -423,7 +432,10 @@ function daw_person_upcoming_html( $person_id ) {
 			<ul class="daw-upnext-list">
 				<?php foreach ( $up['items'] as $it ) : ?>
 					<li>
-						<span class="daw-upnext-badge<?php echo __( 'On air now', 'daw' ) === $it['label'] ? ' is-on' : ''; ?>"><?php echo esc_html( $it['label'] ); ?></span><?php echo ' '; ?>
+						<?php
+						$bk = __( 'On air now', 'daw' ) === $it['label'] ? ' is-on' : ( 'talks' === ( $it['kind'] ?? '' ) ? ' is-talks' : ( 'event' === ( $it['kind'] ?? '' ) ? ' is-event' : '' ) );
+						?>
+						<span class="daw-upnext-badge<?php echo esc_attr( $bk ); ?>"><?php echo esc_html( $it['label'] ); ?></span><?php echo ' '; ?>
 						<?php if ( $it['url'] ) : ?>
 							<a href="<?php echo esc_url( $it['url'] ); ?>"><strong><?php echo esc_html( $it['title'] ); ?></strong></a>
 						<?php else : ?>
@@ -459,7 +471,14 @@ function daw_person_upcoming_html( $person_id ) {
 		<?php if ( null !== $daw_note ) : ?>
 		<p class="daw-upnext-note">
 			<?php if ( $daw_note ) : ?>
-				<?php esc_html_e( 'Only confirmed projects are listed; projects under consideration are not.', 'daw' ); ?>
+				<?php
+				$has_talks = (bool) array_filter( $up['items'], static fn( $x ) => 'talks' === ( $x['kind'] ?? '' ) );
+				echo esc_html(
+					$has_talks
+						? __( 'Projects marked "In talks" are reported negotiations, not confirmed casting; they join the filmography once confirmed.', 'daw' )
+						: __( 'Only confirmed projects are listed; projects under consideration are not.', 'daw' )
+				);
+				?>
 			<?php else : ?>
 				<?php esc_html_e( 'Latest news:', 'daw' ); ?>
 			<?php endif; ?>
@@ -526,7 +545,13 @@ function daw_news_next_html( $pid ) {
 			<p><?php esc_html_e( 'Nothing new is confirmed yet.', 'daw' ); ?></p>
 		<?php endif; ?>
 		<p class="daw-upnext-note">
-			<?php esc_html_e( 'Only confirmed plans are listed.', 'daw' ); ?>
+			<?php
+			echo esc_html(
+				array_filter( $rows, static fn( $x ) => 'talks' === $x['stage'] )
+					? __( 'Lines marked "In talks" are reported negotiations, not confirmed plans.', 'daw' )
+					: __( 'Only confirmed plans are listed.', 'daw' )
+			);
+			?>
 			<?php if ( $chk ) : ?>
 				<?php
 				/* translators: %s: date */
@@ -710,6 +735,16 @@ function daw_nl_title_record( $title ) {
 function daw_nl_row( array $r ) {
 	$when = trim( (string) $r[0] );
 	$what = trim( html_entity_decode( wp_strip_all_tags( (string) $r[1] ), ENT_QUOTES, 'UTF-8' ) );
+	// STAGES (1.77.11, owner 29 Oct 2026: "görüşmede olan da yer almalı,
+	// onaylanan da"). A row may open with its stage word: "In talks:
+	// Seorabeol Knife". Without one it is a confirmed project, as before.
+	$stage = 'confirmed';
+	if ( preg_match( '/^(in talks|offered|reviewing an offer|considering|confirmed|filming|premiere date set|declined|cancelled|canceled)\s*[:\-]\s*/i', $what, $sm ) ) {
+		$sw    = strtolower( $sm[1] );
+		$stage = in_array( $sw, array( 'in talks', 'offered', 'reviewing an offer', 'considering' ), true ) ? 'talks'
+			: ( 'filming' === $sw ? 'filming' : ( in_array( $sw, array( 'declined', 'cancelled', 'canceled' ), true ) ? 'off' : 'confirmed' ) );
+		$what  = trim( substr( $what, strlen( $sm[0] ) ) );
+	}
 	$note = '';
 	if ( preg_match( '/\s*\(([^()]*)\)\s*$/u', $what, $m ) ) {
 		$note = trim( $m[1] );
@@ -735,10 +770,43 @@ function daw_nl_row( array $r ) {
 		'id'    => $id,
 		'where' => $where,
 		'label' => 'upcoming',
+		'stage' => $stage,
 		'line'  => '',
 		'sort'  => PHP_INT_MAX,
 		'gone'  => false,
 	);
+
+	// A declined or cancelled project leaves the box; the story keeps it.
+	if ( 'off' === $stage ) {
+		$out['gone'] = true;
+		return $out;
+	}
+	// In talks: never "confirmed", never "premieres". The date, when there is
+	// one, is the date the talks were reported.
+	if ( 'talks' === $stage ) {
+		$out['label'] = 'talks';
+		$out['line']  = __( 'In talks, not confirmed yet', 'daw' );
+		return $out;
+	}
+	// An event that is not a show (a discharge, a court ruling, a tour) has
+	// a date, not a premiere: Cha Eun Woo's discharge read "Confirmed,
+	// premieres 27 January 2027". A row is a show when it names a title
+	// record, a channel, or a filming stage.
+	$is_show = $id || '' !== $where || 'filming' === $stage;
+	if ( ! $is_show ) {
+		$out['label'] = 'event';
+		$ts           = daw_nl_when_ts( $when );
+		if ( $ts && $ts < time() - DAY_IN_SECONDS ) {
+			$out['gone'] = true;
+			return $out;
+		}
+		$out['line'] = $ts ? daw_nl_when_label( $when ) : ( '' !== $when && ! preg_match( '/\b(not announced|no date|tba|tbc|tbd|unknown|to be announced|to be confirmed)\b/i', $when ) ? $when : __( 'Date not announced yet', 'daw' ) );
+		$out['sort'] = $ts ? $ts : PHP_INT_MAX - 2;
+		return $out;
+	}
+	if ( 'filming' === $stage && ! $id ) {
+		$out['label'] = 'filming';
+	}
 
 	// The record knows better than the story once it exists.
 	if ( $id ) {
