@@ -34,12 +34,13 @@
  * Pinterest screen can switch to a drawn card instead (the TMDB picture on
  * top, kind, year, network, title and address below).
  *
- * A SECOND PIN, LATER
- * -------------------
- * A page whose first pin was the TMDB picture gets a second pin at least 14
- * days later, with the drawn card: same page, a different picture, which is
- * what Pinterest asks of a second pin. Every third pin of the day is one of
- * these once pages are due; nothing gets a third. A record with no confirmed TMDB picture
+ * PINNED ONCE
+ * -----------
+ * A page is pinned once; its picture has then been used. It is pinned again
+ * only when the owner ticks "Yeni görselle tekrar pinle" on its edit screen
+ * (a new season, a new picture, news), and then ahead of everything else,
+ * with a picture it has not been pinned with: its own picture if that has
+ * changed, else the drawn card (owner, 29 Oct 2026). A record with no confirmed TMDB picture
  * uses a featured image with an allowed licence record, and failing that the
  * drawn seal: maroon, gold frame, logo, the name in its own script.
  *
@@ -58,6 +59,7 @@ defined( 'ABSPATH' ) || exit;
 
 const DAW_PIN_LOG  = '_daw_pin';      // list of {pin, board, img, at}
 const DAW_PIN_SKIP = '_daw_pin_skip'; // "do not send to Pinterest"
+const DAW_PIN_AGAIN = '_daw_pin_again'; // "pin again with a new picture"
 const DAW_PIN_W    = 1000;
 const DAW_PIN_H    = 1500;
 const DAW_PIN_REV  = '2'; // bump when the card layout changes
@@ -669,16 +671,14 @@ function daw_pin_pick() {
 	$last_post = $t['pins'] ? (int) end( $t['pins'] )[0] : (int) daw_pin_opt( 'daw_pin_last', 0 );
 	$last_key  = $last_post ? daw_pin_board_key( $last_post ) : '';
 
-	// Every third pin of the day goes to a page that already has its first
-	// pin, with the drawn card this time; so do all pins once every page has
-	// its first one.
-	$ready = array_values( array_filter( daw_pin_candidates(), 'daw_pin_ready' ) );
-	$second = daw_pin_second_candidates();
-	// A show on air or about to start never waits for a second pin.
-	$hot = $ready && daw_pin_tier( $ready[0] ) <= 1;
-	if ( $second && 2 === count( $t['pins'] ) % 3 && ( ! $hot || daw_pin_tier( $second[0] ) <= daw_pin_tier( $ready[0] ) ) ) {
-		return array( $second[0], 'card' );
+	// A page is pinned once: its picture has been used. It goes again only
+	// when the owner asks for it on the edit screen (a new season, a new
+	// picture), and then before anything else (owner, 29 Oct 2026).
+	$again = daw_pin_again();
+	if ( $again ) {
+		return $again;
 	}
+	$ready = array_values( array_filter( daw_pin_candidates(), 'daw_pin_ready' ) );
 
 	$fallback = 0;
 	// Never the same board twice in a row while the same tier has something
@@ -698,58 +698,44 @@ function daw_pin_pick() {
 	if ( $fallback ) {
 		return array( $fallback, '' );
 	}
-	return $second ? array( $second[0], 'card' ) : array( 0, '' );
+	return array( 0, '' );
 }
 
 /**
- * Pages ready for their second pin: one pin so far, made with the TMDB
- * picture itself, at least 14 days ago, and a drawn card that is not that
- * picture. Most visited first.
+ * The first page the owner asked to pin again, with a picture it has not
+ * been pinned with: its own picture if that changed, else the drawn card.
+ * A page with neither left to give has its request dropped.
  *
- * @return int[]
+ * @return array{0:int,1:string}|array{} [post id, look]
  */
-function daw_pin_second_candidates() {
+function daw_pin_again() {
 	$ids = get_posts(
 		array(
-			'post_type'              => 'post',
-			'post_status'            => 'publish',
-			'posts_per_page'         => -1,
-			'fields'                 => 'ids',
-			'no_found_rows'          => true,
-			'update_post_term_cache' => false,
-			'meta_query'             => array( // phpcs:ignore WordPress.DB.SlowDBQuery
-				array( 'key' => DAW_PIN_LOG, 'compare' => 'EXISTS' ),
-				array( 'key' => DAW_PIN_SKIP, 'compare' => 'NOT EXISTS' ),
-			),
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => 20,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_key'       => DAW_PIN_AGAIN, // phpcs:ignore WordPress.DB.SlowDBQuery
+			'orderby'        => 'meta_value_num',
+			'order'          => 'ASC',
 		)
 	);
-	if ( ! $ids ) {
-		return array();
-	}
-	update_meta_cache( 'post', $ids );
-	$out = array();
 	foreach ( $ids as $id ) {
-		$log = get_post_meta( $id, DAW_PIN_LOG, true );
-		$ok  = array_values( array_filter( is_array( $log ) ? $log : array(), static function ( $e ) {
-			return 'atlandi' !== ( $e['pin'] ?? '' );
-		} ) );
-		if ( 1 !== count( $ok ) || (int) $ok[0]['at'] > time() - 14 * DAY_IN_SECONDS ) {
-			continue;
-		}
-		$photo = daw_pin_photo( $id );
-		// The first pin was a poster: ours (the TMDB picture) or one of the
-		// account's pins from before this system, adopted below.
-		$was_poster = 0 === strpos( (string) $ok[0]['img'], 'old:' ) || ( $photo && 'tmdb' === $photo['kind'] && md5( 'tmdb:' . substr( $photo['id'], 5 ) ) === $ok[0]['img'] );
-		if ( ! $was_poster ) {
-			continue;
-		}
 		if ( '' === daw_pin_board_id( daw_pin_board_key( $id ) ) ) {
 			continue;
 		}
-		$out[] = (int) $id;
+		$log  = get_post_meta( $id, DAW_PIN_LOG, true );
+		$used = is_array( $log ) ? wp_list_pluck( $log, 'img' ) : array();
+		foreach ( array( '', 'card' ) as $look ) {
+			$img = daw_pin_image( $id, $look );
+			if ( ! is_wp_error( $img ) && ! in_array( $img['hash'], $used, true ) ) {
+				return array( (int) $id, $look );
+			}
+		}
+		delete_post_meta( $id, DAW_PIN_AGAIN );
 	}
-	usort( $out, 'daw_pin_order' );
-	return $out;
+	return array();
 }
 
 /**
@@ -1485,8 +1471,7 @@ function daw_pin_rest_done( WP_REST_Request $r ) {
  * "Coffee Prince - Asian World", descriptions like "Gong Yoo 52" and no alt
  * text; several pages were pinned twice. Make walks the old boards and posts
  * each pin here. The page it links to gets the pin in its log, so this
- * system never pins the same poster to it again (its second pin, the card,
- * follows 14 days on), and the answer carries the title, description, alt
+ * system never pins the same poster to it again, and the answer carries the title, description, alt
  * text and link Make writes back into the pin. A second old pin for a page
  * that already has one is answered "duplicate" and listed for the owner to
  * delete by hand.
@@ -1679,6 +1664,9 @@ function daw_pin_record( $id, $pin ) {
 	);
 	update_post_meta( $id, DAW_PIN_LOG, $log );
 	delete_option( 'daw_pin_held' );
+	if ( 'atlandi' !== $pin ) {
+		delete_post_meta( $id, DAW_PIN_AGAIN );
+	}
 
 	if ( 'atlandi' === $pin ) {
 		return; // refused by Pinterest: closed, not counted against the day
@@ -1739,14 +1727,14 @@ function daw_pin_state() {
 		'waiting' => count( $cand = daw_pin_candidates() ),
 		'hot'     => count( array_filter( $cand, static fn( $id ) => daw_pin_tier( $id ) <= 1 ) ),
 		// Days until every page has its first pin and every poster pin its card.
-		'days'    => (int) ceil( ( count( $cand ) + count( daw_pin_second_candidates() ) ) / max( 1, daw_pin_cap_today() ) ),
+		'days'    => (int) ceil( count( $cand ) / max( 1, daw_pin_cap_today() ) ),
 		'pinned'  => $pinned,
 		'skipped' => $skip,
 		'today'   => count( $t['pins'] ),
 		'cap'     => daw_pin_cap_today(),
 		'wait'    => daw_pin_wait_reason(),
 		'start'   => daw_pin_settings()['start'],
-		'second'  => count( daw_pin_second_candidates() ),
+		'again'   => count( get_posts( array( 'post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids', 'meta_key' => DAW_PIN_AGAIN ) ) ), // phpcs:ignore WordPress.DB.SlowDBQuery
 		'boards'  => daw_pin_board_counts(),
 		'saves'   => (int) ( $t['saves'] ?? 0 ),
 		'plan'    => daw_pin_plan( 10 ),
@@ -1813,7 +1801,11 @@ function daw_pin_box_html( $post ) {
 				printf( '<li><a href="%s" target="_blank" rel="noopener">%s</a> · %s</li>', esc_url( 'https://www.pinterest.com/pin/' . rawurlencode( $e['pin'] ) . '/' ), esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ), esc_html( 'old' === $e['board'] ? 'eski pin' : ( daw_pin_boards()[ $e['board'] ]['name'] ?? $e['board'] ) ) );
 			}
 		}
-		echo '</ul><p style="color:#646970;margin:0 0 8px">Bu kayıt bir daha sıraya girmez.</p>';
+		echo '</ul>';
+		printf(
+			'<p style="margin:0 0 8px"><label><input type="checkbox" name="daw_pin_again" value="1"%s> Yeni görselle tekrar pinle</label><br><span style="color:#646970">Yeni sezon, yeni görsel ya da haber olduğunda. Sıranın en önüne geçer; daha önce kullanılmamış bir görselle gider.</span></p>',
+			checked( (bool) get_post_meta( $post->ID, DAW_PIN_AGAIN, true ), true, false )
+		);
 	} else {
 		echo '<p style="margin:0 0 8px">Henüz pinlenmedi.</p>';
 	}
@@ -1832,6 +1824,13 @@ function daw_pin_box_save( $post_id ) {
 		update_post_meta( $post_id, DAW_PIN_SKIP, 1 );
 	} else {
 		delete_post_meta( $post_id, DAW_PIN_SKIP );
+	}
+	if ( ! empty( $_POST['daw_pin_again'] ) ) {
+		if ( ! get_post_meta( $post_id, DAW_PIN_AGAIN, true ) ) {
+			update_post_meta( $post_id, DAW_PIN_AGAIN, time() );
+		}
+	} else {
+		delete_post_meta( $post_id, DAW_PIN_AGAIN );
 	}
 }
 
