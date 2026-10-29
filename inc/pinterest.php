@@ -478,12 +478,61 @@ function daw_pin_candidates() {
 			'meta_query'             => $meta, // phpcs:ignore WordPress.DB.SlowDBQuery
 		)
 	);
+	if ( 'all' !== $s['scope'] ) {
+		$ids = array_merge( $ids, daw_pin_hot_unlocked() );
+	}
 	if ( ! $ids ) {
 		return array();
 	}
 	update_meta_cache( 'post', $ids );
 	usort( $ids, 'daw_pin_order' );
 	return array_map( 'intval', $ids );
+}
+
+/**
+ * Shows on air or starting within 30 days that are not locked yet but are
+ * finished enough to pin: a written summary and a picture. They are what
+ * people search this week and the owner treats them as done while they air
+ * (29 Oct 2026); waiting for the lock would pin them after the finale.
+ *
+ * @return int[]
+ */
+function daw_pin_hot_unlocked() {
+	$ids = get_posts(
+		array(
+			'post_type'              => 'post',
+			'post_status'            => 'publish',
+			'posts_per_page'         => -1,
+			'fields'                 => 'ids',
+			'no_found_rows'          => true,
+			'update_post_term_cache' => false,
+			'meta_query'             => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+				array( 'key' => DAW_PIN_LOG, 'compare' => 'NOT EXISTS' ),
+				array( 'key' => DAW_PIN_SKIP, 'compare' => 'NOT EXISTS' ),
+				array(
+					'relation' => 'OR',
+					array( 'key' => '_daw_audit', 'compare' => 'NOT EXISTS' ),
+					array( 'key' => '_daw_audit', 'value' => 's:4:"lock";b:1;', 'compare' => 'NOT LIKE' ),
+				),
+				array( 'key' => 'daw_aired_start', 'compare' => 'EXISTS' ),
+			),
+		)
+	);
+	if ( ! $ids ) {
+		return array();
+	}
+	update_meta_cache( 'post', $ids );
+	$out = array();
+	foreach ( $ids as $id ) {
+		if ( daw_pin_tier( $id ) > 1 || 'news' === ( function_exists( 'daw_get_type' ) ? daw_get_type( $id ) : '' ) ) {
+			continue;
+		}
+		if ( '' === trim( (string) get_post_meta( $id, 'rank_math_description', true ) ) || ! daw_pin_photo( $id ) ) {
+			continue;
+		}
+		$out[] = (int) $id;
+	}
+	return $out;
 }
 
 /**
@@ -537,7 +586,7 @@ function daw_pin_ready( $post_id ) {
 	if ( '' === daw_pin_board_id( daw_pin_board_key( $post_id ) ) ) {
 		return false;
 	}
-	if ( 'all' !== daw_pin_settings()['scope'] && function_exists( 'daw_ae_is_locked' ) && ! daw_ae_is_locked( $post_id ) ) {
+	if ( 'all' !== daw_pin_settings()['scope'] && function_exists( 'daw_ae_is_locked' ) && ! daw_ae_is_locked( $post_id ) && daw_pin_tier( $post_id ) > 1 ) {
 		return false; // locked once, edited since: wait for the audit
 	}
 	return true;
@@ -1264,7 +1313,7 @@ function daw_pin_board_wanted() {
 		};
 		$scope = daw_pin_settings()['scope'];
 		foreach ( daw_pin_candidates() as $id ) {
-			if ( 'all' === $scope || ! function_exists( 'daw_ae_is_locked' ) || daw_ae_is_locked( $id ) ) {
+			if ( 'all' === $scope || ! function_exists( 'daw_ae_is_locked' ) || daw_ae_is_locked( $id ) || daw_pin_tier( $id ) <= 1 ) {
 				$count( daw_pin_board_key( $id ) );
 			}
 		}
