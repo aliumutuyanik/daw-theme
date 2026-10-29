@@ -80,6 +80,8 @@ function daw_pl_filters( $post_type, $which = 'top' ) {
 		'locked'   => 'Kilitli (bitti)',
 		'verified' => 'Doğrulama damgalı',
 		'none'     => 'Hiç denetlenmemiş',
+		'under'    => 'Denetim %100 olmayan',
+		'kwmiss'   => 'Geçmeyen aranan kalıbı olan',
 	);
 	echo '<select name="daw_state">';
 	foreach ( $opts as $k => $label ) {
@@ -124,10 +126,27 @@ function daw_pl_query( $q ) {
 		case 'none':
 			$meta[] = array( 'key' => '_daw_audit', 'compare' => 'NOT EXISTS' );
 			break;
+		case 'under':
+			$meta[] = array( 'key' => '_daw_pct', 'value' => 100, 'compare' => '<', 'type' => 'NUMERIC' );
+			break;
+		case 'kwmiss':
+			$meta[] = array( 'key' => '_daw_kwcov', 'value' => 's:4:"miss";a:0:{}', 'compare' => 'NOT LIKE' );
+			$meta[] = array( 'key' => '_daw_kwcov', 'value' => 's:3:"pct";', 'compare' => 'LIKE' );
+			break;
 	}
 	if ( $st ) {
 		$q->set( 'meta_query', $meta );
 	}
+	if ( 'daw_pct' === $q->get( 'orderby' ) ) {
+		$q->set( 'meta_key', '_daw_pct' );
+		$q->set( 'orderby', 'meta_value_num' );
+	}
+}
+
+add_filter( 'manage_edit-post_sortable_columns', 'daw_pl_sortable' );
+function daw_pl_sortable( $cols ) {
+	$cols['daw_audit'] = 'daw_pct';
+	return $cols;
 }
 
 /* ============================================================== columns === */
@@ -166,6 +185,29 @@ function daw_pl_cell( $col, $post_id ) {
 		return;
 	}
 	$s    = $a['sum'];
+	// The audit as one number, then how much of the searched volume the page
+	// covers and the biggest patterns it still lacks (owner, 29 Oct 2026).
+	$pct = function_exists( 'daw_ap_percent' ) ? daw_ap_percent( $a ) : 0;
+	$col = function_exists( 'daw_ap_pct_colour' ) ? daw_ap_pct_colour( $pct ) : '#50575e';
+	printf( '<div style="font-size:15px;font-weight:700;color:%s;margin-bottom:3px">%%%d</div>', esc_attr( $col ), (int) $pct );
+	$kc = get_post_meta( $post_id, '_daw_kwcov', true );
+	if ( is_array( $kc ) && isset( $kc['pct'] ) ) {
+		$kcol = function_exists( 'daw_ap_pct_colour' ) ? daw_ap_pct_colour( (int) $kc['pct'] ) : '#50575e';
+		printf(
+			'<div style="font-size:11px;margin-bottom:3px">Kalıplar: <strong style="color:%s">%%%d</strong> hacim · %d / %d geçiyor</div>',
+			esc_attr( $kcol ),
+			(int) $kc['pct'],
+			(int) ( $kc['hit'] ?? 0 ),
+			(int) ( $kc['n'] ?? 0 )
+		);
+		if ( ! empty( $kc['miss'] ) ) {
+			$m = array();
+			foreach ( (array) $kc['miss'] as $mk ) {
+				$m[] = esc_html( (string) $mk[0] ) . ' <span style="color:#8c8f94">' . esc_html( number_format_i18n( (int) $mk[1] ) ) . '</span>';
+			}
+			echo '<div style="font-size:11px;color:#a8431a;margin-bottom:3px">Geçmiyor: ' . implode( ' · ', $m ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped above.
+		}
+	}
 	$pill = static function ( $n, $bg, $fg, $label ) {
 		return $n ? sprintf( '<span title="%s" style="display:inline-block;margin:0 3px 3px 0;padding:1px 7px;border-radius:999px;background:%s;color:%s;font-size:11px;font-weight:600">%d %s</span>', esc_attr( $label ), $bg, $fg, (int) $n, esc_html( $label ) ) : '';
 	};
@@ -190,4 +232,64 @@ function daw_pl_cell( $col, $post_id ) {
 		esc_url( admin_url( 'admin.php?page=daw-denetim&record=' . (int) $post_id ) ),
 		esc_html( $when ? $when : 'Denetimi aç' )
 	);
+}
+
+/* ============================================================= backfill === */
+
+/*
+ * Records audited before 1.77.1 have no `_daw_pct` or `_daw_kwcov` yet. Each
+ * hourly tick fills the percentage for up to 200 of them (read from the stored
+ * audit, no page fetch) and the keyword coverage for 20 (one page fetch each),
+ * so the whole site is covered in a few days without loading the server.
+ */
+add_action( 'daw_fix_tick', 'daw_pl_backfill', 80 );
+function daw_pl_backfill() {
+	$ids = get_posts(
+		array(
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => 200,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+				array( 'key' => '_daw_audit', 'compare' => 'EXISTS' ),
+				array( 'key' => '_daw_pct', 'compare' => 'NOT EXISTS' ),
+			),
+		)
+	);
+	foreach ( (array) $ids as $id ) {
+		$a = get_post_meta( $id, '_daw_audit', true );
+		if ( is_array( $a ) && function_exists( 'daw_ap_percent' ) ) {
+			update_post_meta( $id, '_daw_pct', daw_ap_percent( $a ) );
+		}
+	}
+
+	if ( ! function_exists( 'daw_ap_kw_cover' ) ) {
+		return;
+	}
+	$ids = get_posts(
+		array(
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => 20,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery
+				array( 'key' => '_daw_kw', 'compare' => 'EXISTS' ),
+				array( 'key' => '_daw_kwcov', 'compare' => 'NOT EXISTS' ),
+			),
+		)
+	);
+	foreach ( (array) $ids as $id ) {
+		try {
+			daw_ap_kw_cover( (int) $id );
+		} catch ( \Throwable $e ) {
+			unset( $e );
+		}
+		// A page that could not be read is marked, so the next tick moves on
+		// to other records instead of retrying the same twenty.
+		if ( ! get_post_meta( $id, '_daw_kwcov', true ) ) {
+			update_post_meta( $id, '_daw_kwcov', array( 'err' => 1, 'at' => time() ) );
+		}
+	}
 }

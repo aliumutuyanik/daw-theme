@@ -856,13 +856,13 @@ function daw_ap_scores( $pid, array $a ) {
 }
 
 /**
- * Every search pattern saved for the record, with its monthly volume and the
- * places it already appears: SEO title, description, a heading, or the text
- * of the page as a visitor gets it. Target patterns are the ones the record is
- * scored on; patterns flagged as research ("n") are listed too, so the owner
- * can see what is covered and pick the next ones to write for.
+ * Where each saved search pattern appears on the page, and how much of the
+ * monthly search volume the page covers. Stores a summary in `_daw_kwcov`
+ * when the page could be read.
+ *
+ * @return array|null
  */
-function daw_ap_kw_table( $pid ) {
+function daw_ap_kw_cover( $pid, $html = null ) {
 	$raw = get_post_meta( $pid, '_daw_kw', true );
 	$raw = is_array( $raw ) ? $raw : array();
 	$rows = array();
@@ -882,11 +882,11 @@ function daw_ap_kw_table( $pid ) {
 	}
 
 	if ( ! $rows ) {
-		return;
+		return null;
 	}
 
 	$s    = function_exists( 'daw_audit_seo_state' ) ? daw_audit_seo_state( $pid ) : array( 'title' => '', 'description' => '' );
-	$html = function_exists( 'daw_ae_page_html' ) ? (string) daw_ae_page_html( $pid ) : '';
+	$html = null !== $html ? (string) $html : ( function_exists( 'daw_ae_page_html' ) ? (string) daw_ae_page_html( $pid ) : '' );
 	$heads = '';
 
 	if ( preg_match_all( '#<h[1-4][^>]*>(.*?)</h[1-4]>#is', $html, $m ) ) {
@@ -946,6 +946,49 @@ function daw_ap_kw_table( $pid ) {
 	}
 
 	$pct = $vol_all > 0 ? (int) round( $vol_hit / $vol_all * 100 ) : 0;
+
+	// The summary the Posts list shows (owner, 29 Oct 2026: "denetim
+	// yüzdeleri ve geçmeyen kelimeler yazılar kısmında görünsün"): coverage
+	// by search volume, and the biggest target patterns the page still lacks.
+	$miss = array();
+	foreach ( $out as $row ) {
+		if ( ! $row[1] && $row[0]['target'] && count( $miss ) < 5 ) {
+			$miss[] = array( $row[0]['kw'], (int) $row[0]['vol'] );
+		}
+	}
+	if ( '' !== $html ) {
+		update_post_meta(
+			$pid,
+			'_daw_kwcov',
+			array(
+				'pct'  => $pct,
+				'hit'  => (int) $n_hit,
+				'n'    => count( $rows ),
+				'miss' => $miss,
+				'at'   => time(),
+			)
+		);
+	}
+
+	return array( 'rows' => $rows, 'out' => $out, 'pct' => $pct, 'n_hit' => (int) $n_hit );
+}
+
+/**
+ * Every search pattern saved for the record, with its monthly volume and the
+ * places it already appears: SEO title, description, a heading, or the text
+ * of the page as a visitor gets it. Target patterns are the ones the record is
+ * scored on; patterns flagged as research ("n") are listed too, so the owner
+ * can see what is covered and pick the next ones to write for.
+ */
+function daw_ap_kw_table( $pid ) {
+	$c = daw_ap_kw_cover( $pid );
+	if ( ! $c ) {
+		return;
+	}
+	$rows  = $c['rows'];
+	$out   = $c['out'];
+	$pct   = $c['pct'];
+	$n_hit = $c['n_hit'];
 
 	echo '<div style="background:#fff;border:1px solid #dcdcde;border-radius:10px;padding:12px 16px;max-width:1400px;margin:16px 0">';
 	printf(

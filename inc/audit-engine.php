@@ -589,7 +589,19 @@ function daw_ae_audit( $post_id ) {
 			$p     = $p - $dup_role;
 			$r     = $r - $dup_rcell;
 			if ( $p !== $r ) {
-				$rules[] = array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'no', 'Kişi ve rol sayısı eşit olmalı' );
+				// Fewer roles than people, and the role field carries a sourced
+				// madde 66 N/A: the names are credited, the parts were never
+				// published (Let's Go! 18942). It counts like the episode line
+				// below; a wrong count the other way stays red.
+				$rk = "daw_cast_{$tier}_role";
+				if ( $r < $p && isset( $yok[ $rk ] ) ) {
+					$why     = daw_ae_yok_check( $rk, $yok[ $rk ], $yok );
+					$rules[] = '' !== $why
+						? array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'eksik', $why )
+						: array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'yok', is_string( $yok[ $rk ] ) ? $yok[ $rk ] : 'Araştırıldı, kaynak yok' );
+				} else {
+					$rules[] = array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'no', 'Kişi ve rol sayısı eşit olmalı' );
+				}
 			}
 			if ( 'main' !== $tier && $p_eps > 0 && 'film' !== $type ) {
 				$eps = count( daw_ae_values( $post_id, "daw_cast_{$tier}_eps" ) );
@@ -1715,6 +1727,14 @@ function daw_ae_store( $post_id ) {
 		}
 	}
 	daw_ae_maybe_lock( $post_id, $a );
+	// Keyword coverage for the Posts list, from the page the audit just read.
+	if ( function_exists( 'daw_ap_kw_cover' ) ) {
+		try {
+			daw_ap_kw_cover( $post_id );
+		} catch ( \Throwable $e ) {
+			unset( $e );
+		}
+	}
 	update_post_meta(
 		$post_id,
 		DAW_AE_META,
@@ -1729,6 +1749,11 @@ function daw_ae_store( $post_id ) {
 			'lock'  => daw_ae_is_locked( $post_id ),
 		)
 	);
+	// The percentage as its own number, so the Posts list can sort and
+	// filter on it.
+	if ( function_exists( 'daw_ap_percent' ) ) {
+		update_post_meta( $post_id, '_daw_pct', daw_ap_percent( array( 'sum' => $a['sum'] ) ) );
+	}
 	return $a;
 }
 
@@ -2043,6 +2068,17 @@ function daw_ae_duplicates( $post_id ) {
 
 /** The published page, fresh (cache busted, K2), or '' when it cannot be read. */
 function daw_ae_page_html( $post_id ) {
+	// One fetch per record per request: the audit and the keyword coverage
+	// stored after it read the same page.
+	static $memo = array();
+	if ( isset( $memo[ (int) $post_id ] ) ) {
+		return $memo[ (int) $post_id ];
+	}
+	$memo[ (int) $post_id ] = daw_ae_page_html_fetch( $post_id );
+	return $memo[ (int) $post_id ];
+}
+
+function daw_ae_page_html_fetch( $post_id ) {
 	$url = get_permalink( $post_id );
 	if ( ! $url || 'publish' !== get_post_status( $post_id ) ) {
 		return '';
