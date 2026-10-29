@@ -2405,13 +2405,29 @@ html { scroll-behavior: smooth; }
 		row-gap: 14px;
 		padding: 16px 0 6px;
 	}
-	/* The facts line and the genres sit beside the poster, under the
-	   title; the dates, the button and the vote run the full width below.
-	   A short title no longer leaves an empty strip beside the poster. */
+	/* THE POSTER AS A FLOAT (1.77.6, owner 29 Oct 2026: "alanlar tam olarak
+	   doğru kullanılsın"). In a grid one side was always left empty: a short
+	   title left a strip beside the poster, a long one left a strip under
+	   it. Floated, the title, the facts and the genres start beside the
+	   poster and carry on under it once it ends, magazine style, so neither
+	   side has a gap. The dates, the button and the vote clear the float and
+	   run the full width. Flex rows here would sit beside the float as a
+	   block and leave the gap again, so they become plain inline flow. */
+	.daw-hero { display: block; }
+	.daw-hero::after { content: ""; display: block; clear: both; }
+	.daw-hero-poster { float: left; width: 104px; margin: 0 14px 6px 0; }
+	.daw-hero-id { margin-bottom: 10px; }
 	.daw-hero-meta { display: contents; }
-	.daw-hero-sub { grid-area: sub; gap: 8px; align-self: start; }
-	.daw-hero-meta > :not(.daw-hero-sub) { grid-column: 1 / -1; }
-	.daw-hero-sub .daw-chip { font-size: .78rem; padding: 3px 10px; }
+	.daw-hero-sub { display: block; }
+	.daw-hero-sub .daw-facts { display: block; line-height: 1.55; }
+	.daw-hero-sub .daw-status { margin: 4px 0 0; vertical-align: middle; }
+	.daw-hero-sub .daw-hero-row { display: block; margin-top: 10px; }
+	.daw-hero-sub .daw-metarow { display: block; margin-top: 0; }
+	.daw-hero-sub .daw-chip { margin: 0 6px 6px 0; font-size: .78rem; padding: 3px 10px; min-height: 28px; }
+	.daw-hero .daw-native { display: block; }
+	.daw-hero .daw-native > span { display: inline; margin-right: 10px; }
+	.daw-hero-meta > :not(.daw-hero-sub) { clear: both; }
+	.daw-hero-meta > .daw-hero-sub + * { margin-top: 14px; }
 	.daw-stickynav { margin-top: 10px; }
 	.daw-hero h1 { font-size: clamp(1.45rem, 6.4vw, 1.9rem); }
 	.daw-native { font-size: .98rem; }
