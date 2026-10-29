@@ -97,7 +97,10 @@ function daw_lic_status( $att_id, $post_id = 0 ) {
 	}
 	if ( 'press' === $r['type'] ) {
 		$type = $post_id && function_exists( 'daw_get_type' ) ? daw_get_type( $post_id ) : '';
-		if ( 'news' !== $type ) {
+		// Owner, 29 Oct 2026: a title with no TMDB picture may carry the
+		// distributor's or broadcaster's own promotional still or poster,
+		// credited and with its terms written down. People stay excluded.
+		if ( ! in_array( $type, array( 'news', 'drama', 'film', 'variety', 'anime' ), true ) ) {
 			return 'disallowed';
 		}
 		if ( '' === $r['source'] || '' === $r['terms'] ) {
@@ -347,7 +350,7 @@ function daw_lic_box_render( $post ) {
 	printf( '<p><strong>Status:</strong> %s</p>', esc_html( $st ) );
 
 	echo '<p><label>Licence<br><select name="daw_lic[type]" style="width:100%"><option value="">— none recorded —</option>';
-	foreach ( array( 'cc0' => 'CC0', 'pd' => 'Public domain', 'cc-by' => 'CC BY', 'cc-by-sa' => 'CC BY-SA', 'kogl1' => 'KOGL Type 1', 'press' => 'Press material (news only)', 'own' => 'Our own work' ) as $v => $l ) {
+	foreach ( array( 'cc0' => 'CC0', 'pd' => 'Public domain', 'cc-by' => 'CC BY', 'cc-by-sa' => 'CC BY-SA', 'kogl1' => 'KOGL Type 1', 'press' => 'Press material (news and titles, not people)', 'own' => 'Our own work' ) as $v => $l ) {
 		printf( '<option value="%s" %s>%s</option>', esc_attr( $v ), selected( $vals['type'], $v, false ), esc_html( $l ) );
 	}
 	echo '</select></label></p>';
