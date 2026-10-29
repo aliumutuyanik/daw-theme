@@ -131,7 +131,7 @@ function daw_pl_query( $q ) {
 			break;
 		case 'kwmiss':
 			$meta[] = array( 'key' => '_daw_kwcov', 'value' => 's:4:"miss";a:0:{}', 'compare' => 'NOT LIKE' );
-			$meta[] = array( 'key' => '_daw_kwcov', 'compare' => 'EXISTS' );
+			$meta[] = array( 'key' => '_daw_kwcov', 'value' => 's:3:"pct";', 'compare' => 'LIKE' );
 			break;
 	}
 	if ( $st ) {
