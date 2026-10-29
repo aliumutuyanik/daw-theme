@@ -143,6 +143,12 @@ function daw_cast_reindex_backfill() {
 function daw_flush_person_cache() {
 	global $wpdb;
 
+	// A persistent object cache keeps transients out of the options table,
+	// so the DELETE below never reached them: Seorabeol Knife stayed in Cha
+	// Eun Woo's filmography after he left its cast (29 Oct 2026). The keys
+	// carry a generation number, and a flush moves it on.
+	update_option( 'daw_flm_gen', (int) get_option( 'daw_flm_gen', 0 ) + 1, false );
+
 	$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		"DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_daw_flm_%' OR option_name LIKE '_transient_timeout_daw_flm_%'"
 	);
@@ -188,7 +194,7 @@ function daw_get_filmography( $person_id ) {
 	// the key now, so every release starts from a clean read and a fix is
 	// visible the moment it is installed. The daw_flm_ prefix is kept so
 	// daw_flush_person_cache() still clears these.
-	$key    = 'daw_flm_v3_' . str_replace( '.', '', DAW_VERSION ) . '_' . $person_id;
+	$key    = 'daw_flm_v3_' . str_replace( '.', '', DAW_VERSION ) . '_' . (int) get_option( 'daw_flm_gen', 0 ) . '_' . $person_id;
 	$cached = get_transient( $key );
 
 	if ( is_array( $cached ) ) {
@@ -607,7 +613,7 @@ function daw_worked_with( $person_id, $limit = 6 ) {
 	// The key carries the version because what counts as a shared credit just
 	// changed; a day-old payload from the previous rule would answer with an
 	// empty list and look like a bug.
-	$key       = 'daw_flm_ww2_' . str_replace( '.', '', DAW_VERSION ) . '_' . $person_id . '_' . (int) $limit;
+	$key       = 'daw_flm_ww2_' . str_replace( '.', '', DAW_VERSION ) . '_' . (int) get_option( 'daw_flm_gen', 0 ) . '_' . $person_id . '_' . (int) $limit;
 	$cached    = get_transient( $key );
 
 	if ( is_array( $cached ) ) {
