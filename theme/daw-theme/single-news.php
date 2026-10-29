@@ -198,8 +198,14 @@ while ( have_posts() ) :
 				<section class="daw-nconfirm" id="what-is-confirmed">
 					<h2><?php esc_html_e( 'What is confirmed', 'daw' ); ?></h2>
 
+					<?php
+					// Records named in the box and the timeline link to their
+					// pages, each once (daw_news_autolink, functions.php).
+					$nl_used = array();
+					$nl_ids  = function_exists( 'daw_news_autolink' ) ? array_map( 'intval', (array) $mentions ) : array();
+					?>
 					<?php if ( trim( (string) $confirmed ) !== '' ) : ?>
-						<div class="daw-prose"><?php echo wp_kses_post( $confirmed ); ?></div>
+						<div class="daw-prose"><?php echo $nl_ids ? wp_kses_post( daw_news_autolink( wp_kses_post( $confirmed ), $nl_ids, $nl_used ) ) : wp_kses_post( $confirmed ); ?></div>
 					<?php endif; ?>
 
 					<?php if ( $timeline ) : ?>
@@ -209,7 +215,7 @@ while ( have_posts() ) :
 									<?php if ( (int) $row['date'] ) : ?>
 										<span class="daw-ntl-d"><?php echo esc_html( date_i18n( 'j F Y', (int) $row['date'] ) ); ?></span>
 									<?php endif; ?>
-									<span class="daw-ntl-e"><?php echo esc_html( $row['event'] ); ?></span>
+									<span class="daw-ntl-e"><?php echo $nl_ids ? wp_kses_post( daw_news_autolink( esc_html( $row['event'] ), $nl_ids, $nl_used ) ) : esc_html( $row['event'] ); ?></span>
 								</li>
 							<?php endforeach; ?>
 						</ol>

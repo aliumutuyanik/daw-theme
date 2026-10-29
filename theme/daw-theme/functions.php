@@ -1643,3 +1643,59 @@ function daw_home_news_date( $id ) {
 	}
 	return wp_date( 'j F Y', $posted );
 }
+
+/**
+ * Link the records a story mentions where its fact box and timeline name them
+ * (owner, 29 Oct 2026: "confirmed olanlarda sayfası varsa içeride linklenmeli").
+ * The first mention of each record's title in the given HTML becomes a link to
+ * its page; text inside an existing link or a tag is left alone, and a title
+ * already linked earlier on the page ($used) is not linked twice. Longer
+ * titles go first, so "Doctor X: Age of the White Mafia" wins over "Doctor X".
+ *
+ * @param string $html     Escaped HTML.
+ * @param int[]  $mentions Record ids the story mentions.
+ * @param array  $used     Ids already linked, carried between calls.
+ * @return string
+ */
+function daw_news_autolink( $html, array $mentions, array &$used ) {
+	$titles = array();
+	foreach ( $mentions as $mid ) {
+		$mid = (int) $mid;
+		if ( ! $mid || isset( $used[ $mid ] ) || 'publish' !== get_post_status( $mid ) ) {
+			continue;
+		}
+		$t = trim( wp_specialchars_decode( get_the_title( $mid ), ENT_QUOTES ) );
+		if ( mb_strlen( $t ) >= 4 ) {
+			$titles[ $mid ] = $t;
+		}
+	}
+	uasort( $titles, static fn( $a, $b ) => mb_strlen( $b ) <=> mb_strlen( $a ) );
+	foreach ( $titles as $mid => $t ) {
+		// Split into tags and text; skip text inside <a>…</a>.
+		$parts = preg_split( '/(<[^>]+>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
+		$in_a  = 0;
+		$done  = false;
+		$re    = '/(?<![\p{L}\p{N}])' . preg_quote( esc_html( $t ), '/' ) . '(?![\p{L}\p{N}])/u';
+		foreach ( $parts as $i => $p ) {
+			if ( '' !== $p && '<' === $p[0] ) {
+				if ( preg_match( '/^<a\b/i', $p ) ) {
+					++$in_a;
+				} elseif ( preg_match( '/^<\/a>/i', $p ) ) {
+					$in_a = max( 0, $in_a - 1 );
+				}
+				continue;
+			}
+			if ( $in_a || ! preg_match( $re, $p ) ) {
+				continue;
+			}
+			$parts[ $i ] = preg_replace( $re, '<a href="' . esc_url( get_permalink( $mid ) ) . '">$0</a>', $p, 1 );
+			$done        = true;
+			break;
+		}
+		if ( $done ) {
+			$html         = implode( '', $parts );
+			$used[ $mid ] = true;
+		}
+	}
+	return $html;
+}
