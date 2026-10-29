@@ -570,6 +570,9 @@ function daw_box_person_links() {
 		'daw_link_wikipedia'  => __( 'Wikipedia', 'daw' ),
 		'daw_link_agency'     => __( 'Agency page', 'daw' ),
 		'daw_link_apple'      => __( 'Apple Music', 'daw' ),
+		// The person's own page on the BL/GL sister site, filled only when
+		// that page is live; the profile then hands the pairing work over.
+		'daw_blgl_url'        => __( 'BL/GL page (BLGLFlix)', 'daw' ),
 	);
 
 	$fields = array();

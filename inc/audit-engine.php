@@ -332,6 +332,11 @@ function daw_ae_native_script_ok( $s, $country ) {
 	// What is wrong is a native title with NONE of the country's own script,
 	// so a Latin letter is only a fault when the native script is missing.
 	$c = strtolower( $country );
+	// Vietnamese, Filipino, Indonesian and Malay are written in Latin letters,
+	// so a Latin native title is the right one there (Forever Young 2, 1.75.87).
+	if ( preg_match( '/vietnam|philippines|indonesia|malaysia/', $c ) ) {
+		return true;
+	}
 	if ( preg_match( '/[A-Za-z]/', $s ) && ! preg_match( '/[\p{Hangul}\p{Hiragana}\p{Katakana}\p{Han}\p{Thai}]/u', $s ) ) {
 		return false;
 	}
@@ -752,7 +757,12 @@ function daw_ae_audit( $post_id ) {
 	if ( function_exists( 'daw_tmdb_ref' ) && in_array( $group, array( 'title', 'show' ), true ) ) {
 		$ref = daw_tmdb_ref( $post_id );
 		if ( $ref && ( ( 'movie' === $ref['kind'] && 'film' !== $type ) || ( 'tv' === $ref['kind'] && 'film' === $type ) ) ) {
-			$rules[] = array( 'Tür ve TMDB (K21)', $type . ' / ' . $ref['kind'], 'no', 'Kaydın türü TMDB kaydının türüyle uyuşmuyor' );
+			// A one-off TV special that TMDB files as a movie is real; once a
+			// source settles it the record carries `_daw_ok['tmdb_kind']`.
+			$okk     = (array) get_post_meta( $post_id, '_daw_ok', true );
+			$rules[] = isset( $okk['tmdb_kind'] )
+				? array( 'Tür ve TMDB (K21)', $type . ' / ' . $ref['kind'], 'ok', 'Tür farkı doğrulandı: ' . ( is_string( $okk['tmdb_kind'] ) ? $okk['tmdb_kind'] : '' ) )
+				: array( 'Tür ve TMDB (K21)', $type . ' / ' . $ref['kind'], 'no', 'Kaydın türü TMDB kaydının türüyle uyuşmuyor; tek bölümlük TV özel yapımıysa kaynakla _daw_ok[\'tmdb_kind\'] yazılır' );
 		}
 	}
 
@@ -880,7 +890,8 @@ function daw_ae_audit( $post_id ) {
 			}
 			// A pattern like "pinocchio cast" is met by a heading that holds "cast".
 			$tail = trim( str_replace( strtolower( $title_text ), '', $k ) );
-			$met  = daw_ae_kw_in( $k, $hs ) || ( '' !== $tail && daw_ae_kw_in( $tail, $hs ) );
+			// Folded like the body checks, so "K-pop" in a heading meets "kpop".
+			$met  = daw_ae_kw_in_fold( $k, $hs ) || ( '' !== $tail && daw_ae_kw_in_fold( $tail, $hs ) );
 			$page_items[] = array( 'Başlıkta yüksek hacimli kalıp (K11)', $k, $met ? 'ok' : 'no', $met ? '' : 'En çok aranan kalıplardan biri hiçbir başlıkta yok' );
 		}
 	}
@@ -2072,8 +2083,10 @@ function daw_ae_page_checks( $post_id, $html, $group, $type ) {
 	$og_note = $og_home ? 'og:image sitede barınan bir dosya; TMDB adresi olmalı' : '';
 	// A record TMDB has no poster for, with nothing uploaded to it, gets the
 	// site's own default share picture (the logo) from Rank Math. That is not a
-	// copy of a poster or portrait, so it waits instead of failing.
-	$og_default = $og_home && ! get_post_thumbnail_id( $post_id ) && function_exists( 'daw_remote_mode_for' ) && 'monogram' === daw_remote_mode_for( $post_id ) && function_exists( 'daw_tmdb_img_path_raw' ) && '' === daw_tmdb_img_path_raw( $post_id );
+	// copy of a poster or portrait, so it waits instead of failing. A local
+	// featured image on such a record is not shared (daw_share_image_for_record
+	// names the default instead), so it no longer blocks this.
+	$og_default = $og_home && ( 'group' === $group ? ! get_post_thumbnail_id( $post_id ) : true ) && function_exists( 'daw_remote_mode_for' ) && 'monogram' === daw_remote_mode_for( $post_id ) && function_exists( 'daw_tmdb_img_path_raw' ) && '' === daw_tmdb_img_path_raw( $post_id );
 	if ( $og_default ) {
 		$og_home = false;
 		$og_note = 'TMDB kaydında afiş yok: site varsayılan paylaşım görseli (logo) gidiyor';

@@ -113,10 +113,25 @@ function daw_favicon() {
 		}
 	}
 
-	$touch = daw_icon_src( 180 );
+	$v    = defined( 'DAW_VERSION' ) ? DAW_VERSION : '1';
+	$root = function_exists( 'daw_icon_root_has' ) ? 'daw_icon_root_has' : '__return_false';
+
+	// The .ico carries 16, 32 and 48 in one file, for Windows and old software.
+	if ( $root( 'favicon.ico' ) ) {
+		printf( '<link rel="icon" href="%s" sizes="any">' . "\n", esc_url( home_url( '/favicon.ico?v=' . $v ) ) );
+	}
+
+	// iOS paints a transparent icon on black, so it gets the opaque copy.
+	$touch = $root( 'apple-touch-icon.png' ) ? home_url( '/apple-touch-icon.png?v=' . $v ) : daw_icon_src( 180 );
 
 	if ( $touch ) {
 		printf( '<link rel="apple-touch-icon" sizes="180x180" href="%s">' . "\n", esc_url( $touch ) );
+	}
+
+	// Android home screen and Chrome's install sheet read the manifest.
+	if ( $root( 'site.webmanifest' ) ) {
+		printf( '<link rel="manifest" href="%s">' . "\n", esc_url( home_url( '/site.webmanifest?v=' . $v ) ) );
+		echo '<meta name="theme-color" content="#7E2128">' . "\n";
 	}
 }
 

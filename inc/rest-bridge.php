@@ -128,6 +128,11 @@ add_action( 'rest_api_init', static function () {
 				if ( ! function_exists( 'daw_wc_rows' ) || ! function_exists( 'daw_ae_text_issues' ) ) {
 					return daw_rb_nocache( array( 'error' => 'audit not loaded' ) );
 				}
+				// The sentence index is rebuilt daily; after a day of heavy
+				// writing it can be rebuilt on demand before a sweep.
+				if ( $r->get_param( 'build_orig' ) && function_exists( 'daw_orig_build' ) ) {
+					return daw_rb_nocache( array( 'hashes' => count( (array) daw_orig_build() ) ) );
+				}
 				if ( $r->get_param( 'build_tpl' ) && function_exists( 'daw_voice_tpl_build' ) ) {
 					$fr = daw_voice_tpl_build();
 					return daw_rb_nocache( array( 'frames' => count( $fr ), 'top' => array_slice( $fr, 0, 60, true ) ) );
@@ -207,6 +212,40 @@ add_action( 'rest_api_init', static function () {
 					return daw_rb_nocache( array( 'total' => 0 ) );
 				}
 				$in   = implode( ',', $ids );
+				// 1.75.87: ?rank=1 lists every record with its level and its
+				// biggest search pattern, so work starts where readers search most.
+				if ( $r->get_param( 'rank' ) ) {
+					$rm = $wpdb->get_results( "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ($in) AND meta_key IN ('_daw_kw','_daw_audit')", ARRAY_A ); // phpcs:ignore WordPress.DB
+					$by = array();
+					foreach ( (array) $rm as $row ) {
+						$by[ (int) $row['post_id'] ][ $row['meta_key'] ] = maybe_unserialize( $row['meta_value'] );
+					}
+					$tt  = $wpdb->get_results( "SELECT ID, post_title FROM {$wpdb->posts} WHERE ID IN ($in)", OBJECT_K ); // phpcs:ignore WordPress.DB
+					$out = array();
+					foreach ( $ids as $id ) {
+						$a   = $by[ $id ]['_daw_audit'] ?? array();
+						$sum = is_array( $a ) ? (array) ( $a['sum'] ?? array() ) : array();
+						$red = (int) ( $sum['no'] ?? 0 ) + (int) ( $sum['eksik'] ?? 0 );
+						$kw  = $by[ $id ]['_daw_kw'] ?? array();
+						$kw  = is_string( $kw ) ? json_decode( $kw, true ) : $kw;
+						$tv  = 0;
+						$tk  = '';
+						foreach ( is_array( $kw ) ? $kw : array() as $k ) {
+							if ( is_array( $k ) && empty( $k['x'] ) && empty( $k['n'] ) && (int) ( $k['vol'] ?? 0 ) > $tv ) {
+								$tv = (int) $k['vol'];
+								$tk = (string) ( $k['kw'] ?? '' );
+							}
+						}
+						$out[] = array( 'id' => $id, 't' => isset( $tt[ $id ] ) ? (string) $tt[ $id ]->post_title : '', 'red' => $red, 'no' => (int) ( $sum['no'] ?? 0 ), 'lock' => ! empty( $a['lock'] ), 'vol' => $tv, 'kw' => $tk );
+					}
+					$only = (string) $r->get_param( 'only' );
+					if ( 'eksik' === $only ) {
+						$out = array_values( array_filter( $out, static fn( $x ) => $x['red'] > 0 ) );
+					}
+					usort( $out, static fn( $a, $b ) => $b['vol'] <=> $a['vol'] );
+					$n = max( 1, min( 1500, (int) ( $r->get_param( 'n' ) ?? 100 ) ) );
+					return daw_rb_nocache( array( 'n' => count( $out ), 'rows' => array_slice( $out, 0, $n ) ) );
+				}
 				$meta = $wpdb->get_results( "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ($in) AND meta_key IN ('_daw_kw','_daw_kw_at','_daw_yok','daw_views_30')", ARRAY_A ); // phpcs:ignore WordPress.DB
 				$m = array();
 				foreach ( (array) $meta as $row ) {

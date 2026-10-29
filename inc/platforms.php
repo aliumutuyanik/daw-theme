@@ -168,6 +168,32 @@ function daw_platform_icon_url( $url ) {
 		return $store[ $domain ]['url'];
 	}
 
+	// A logo put in the media library by hand (a site that serves only an
+	// .ico or an svg, or blocks the fetch) is tagged with its domain and
+	// adopted here once; the store then answers from the next call on.
+	$hand = get_transient( 'daw_pfh_' . md5( $domain ) ) ? array() : get_posts(
+		array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'inherit',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_key'       => '_daw_platform_domain', // phpcs:ignore WordPress.DB.SlowDBQuery
+			'meta_value'     => $domain, // phpcs:ignore WordPress.DB.SlowDBQuery
+		)
+	);
+	if ( $hand ) {
+		$store[ $domain ] = array(
+			'id'      => (int) $hand[0],
+			'url'     => wp_get_attachment_url( (int) $hand[0] ),
+			'checked' => time(),
+			'source'  => 'media library',
+		);
+		update_option( DAW_PLATFORM_OPTION, $store, false );
+
+		return $store[ $domain ]['url'];
+	}
+	set_transient( 'daw_pfh_' . md5( $domain ), 1, HOUR_IN_SECONDS );
+
 	// A domain that failed recently is left alone: a dead favicon url does not
 	// come back to life because 900 records asked for it.
 	$last = isset( $store[ $domain ]['checked'] ) ? (int) $store[ $domain ]['checked'] : 0;

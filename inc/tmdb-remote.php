@@ -843,7 +843,23 @@ function daw_share_image_for_record( $url ) {
 	if ( '' !== $remote && false === strpos( $remote, '/wp-content/uploads/' ) ) {
 		return $remote;
 	}
-	return false !== strpos( (string) $url, '/wp-content/uploads/' ) ? '' : $url;
+	if ( false === strpos( (string) $url, '/wp-content/uploads/' ) ) {
+		return $url;
+	}
+	// The local file is not shared. An empty answer reads as "keep what was
+	// found" to the SEO engine, so the site's default share image is named
+	// instead (Honest Living, 28 Oct 2026, kept its local featured image).
+	if ( function_exists( 'daw_eng_set' ) ) {
+		$def = (int) daw_eng_set( 'og_image_id', 0 );
+		$src = $def ? (string) wp_get_attachment_image_url( $def, 'full' ) : '';
+		if ( '' === $src ) {
+			$src = (string) daw_eng_set( 'og_image', '' );
+		}
+		if ( '' !== $src ) {
+			return $src;
+		}
+	}
+	return '';
 }
 // One filter for og:image and twitter:image. The SEO engine applies it, and
 // while Rank Math is active seo-engine.php bridges it into Rank Math's three.

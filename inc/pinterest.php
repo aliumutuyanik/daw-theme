@@ -370,14 +370,29 @@ function daw_pin_settings() {
 		$s['rv'] = 3;
 		update_option( 'daw_pin', $s, false );
 	}
+	// The account has pinned the site since 2024 and the queue holds over
+	// 500 pins, so 6 a day would take three months (owner, 29 Oct 2026): the
+	// stored 6/10/15 moves to 15/20/25 and the day widens to 06:00-24:00
+	// New York, unless the Pinterest screen set other values by hand.
+	if ( is_array( $s ) && $s && (int) ( $s['rv'] ?? 0 ) < 4 ) {
+		if ( '6,10,15' === ( $s['ramp'] ?? '6,10,15' ) ) {
+			$s['ramp'] = '15,20,25';
+		}
+		if ( 8 === (int) ( $s['from'] ?? 8 ) && 22 === (int) ( $s['to'] ?? 22 ) ) {
+			$s['from'] = 6;
+			$s['to']   = 24;
+		}
+		$s['rv'] = 4;
+		update_option( 'daw_pin', $s, false );
+	}
 	return wp_parse_args(
 		is_array( $s ) ? $s : array(),
 		array(
 			'on'    => 1,
 			'scope' => 'locked', // locked | all
-			'from'  => 8,        // New York hours
-			'to'    => 22,
-			'ramp'  => '6,10,15', // a day: weeks 1-2, weeks 3-4, after
+			'from'  => 6,        // New York hours
+			'to'    => 24,
+			'ramp'  => '15,20,25', // a day: weeks 1-2, weeks 3-4, after
 			'start' => '',       // Y-m-d of the first pin, set by the first pin
 			'look'  => 'direct', // direct: the TMDB picture as it is | card: drawn card
 			'saves' => 6,        // saves of existing pins to more boards, a day
@@ -407,7 +422,7 @@ function daw_pin_readable( $keys ) {
 /** Pins allowed today, by how long the account has been pinning. */
 function daw_pin_cap_today() {
 	$s    = daw_pin_settings();
-	$ramp = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 6, 10, 15 );
+	$ramp = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 15, 20, 25 );
 	if ( '' === $s['start'] ) {
 		return max( 1, $ramp[0] );
 	}
@@ -546,7 +561,9 @@ function daw_pin_wait_reason() {
 		return 'daily cap reached';
 	}
 	// Spread the day's pins over the window rather than spending them at once.
-	$gap  = (int) floor( ( (int) $s['to'] - (int) $s['from'] ) * HOUR_IN_SECONDS / $cap );
+	// A little under an even share, so the drip's polls can still reach the
+	// day's count before the window closes.
+	$gap  = (int) floor( 0.8 * ( (int) $s['to'] - (int) $s['from'] ) * HOUR_IN_SECONDS / $cap );
 	$last = $t['pins'] ? (int) end( $t['pins'] )[1] : 0;
 	if ( $last && time() - $last < $gap ) {
 		return 'too soon';
@@ -656,7 +673,7 @@ function daw_pin_second_candidates() {
  */
 function daw_pin_plan( $limit = 60 ) {
 	$s     = daw_pin_settings();
-	$ramp  = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 6, 10, 15 );
+	$ramp  = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 15, 20, 25 );
 	$start = '' !== $s['start'] ? strtotime( $s['start'] . ' 00:00:00 UTC' ) : time();
 	$day   = new DateTime( 'now', daw_pin_tz() );
 	$left  = daw_pin_cap_today() - count( daw_pin_today()['pins'] );
@@ -1742,12 +1759,12 @@ function daw_pin_settings_save() {
 	$s          = daw_pin_settings();
 	$s['on']    = empty( $_POST['on'] ) ? 0 : 1;
 	$s['scope'] = isset( $_POST['scope'] ) && 'all' === $_POST['scope'] ? 'all' : 'locked';
-	$s['from']  = max( 0, min( 23, (int) ( $_POST['from'] ?? 8 ) ) );
-	$s['to']    = max( $s['from'] + 1, min( 24, (int) ( $_POST['to'] ?? 22 ) ) );
-	$ramp       = array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['ramp'] ?? '6,10,15' ) ) ) );
+	$s['from']  = max( 0, min( 23, (int) ( $_POST['from'] ?? 6 ) ) );
+	$s['to']    = max( $s['from'] + 1, min( 24, (int) ( $_POST['to'] ?? 24 ) ) );
+	$ramp       = array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['ramp'] ?? '15,20,25' ) ) ) );
 	$s['look']  = isset( $_POST['look'] ) && 'card' === $_POST['look'] ? 'card' : 'direct';
-	$s['ramp']  = implode( ',', array_slice( array_pad( array_filter( $ramp ), 3, 15 ), 0, 3 ) );
-	$s['rv']    = 3;
+	$s['ramp']  = implode( ',', array_slice( array_pad( array_filter( $ramp ), 3, 25 ), 0, 3 ) );
+	$s['rv']    = 4;
 	update_option( 'daw_pin', $s, false );
 	daw_pin_state_save();
 	wp_safe_redirect( admin_url( 'admin.php?page=daw-pinterest&saved=1' ) );
