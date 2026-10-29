@@ -193,14 +193,12 @@ $n_done = count( $data['done'] );
 							<a class="t" href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a>
 							<span class="m"><?php echo esc_html( implode( ' · ', $facts ) ); ?></span>
 							<?php
-							// When it airs: the sourced airing days, then the next
-							// dated episode from the record's own list.
-							$days = trim( (string) daw_field_raw( $id, 'daw_airing_days' ) );
-							$nxt  = function_exists( 'daw_calendar_next_ep' ) ? daw_calendar_next_ep( $id ) : null;
-							if ( '' !== $days ) :
-								?>
-								<span class="m daw-cal2-days"><?php echo esc_html( $days ); ?></span>
-							<?php endif; ?>
+							// When it airs: the next dated episode from the record's
+							// own list, then the sourced airing days (two lines at
+							// most, so long notes keep the rail even).
+							$air_days = trim( (string) daw_field_raw( $id, 'daw_airing_days' ) );
+							$nxt      = function_exists( 'daw_calendar_next_ep' ) ? daw_calendar_next_ep( $id ) : null;
+							?>
 							<?php if ( $nxt ) : ?>
 								<span class="m daw-cal2-next">
 									<?php
@@ -216,6 +214,9 @@ $n_done = count( $data['done'] );
 								</span>
 							<?php elseif ( $row['when'] <= time() && $row['when'] ) : ?>
 								<span class="m"><?php echo esc_html( sprintf( /* translators: %s: date */ __( 'Premiered %s', 'daw' ), daw_calendar_fmt( $row['when'], 'j M' ) ) ); ?></span>
+							<?php endif; ?>
+							<?php if ( '' !== $air_days ) : ?>
+								<span class="m daw-cal2-days" title="<?php echo esc_attr( $air_days ); ?>"><?php echo esc_html( $air_days ); ?></span>
 							<?php endif; ?>
 						</li>
 					<?php endforeach; ?>

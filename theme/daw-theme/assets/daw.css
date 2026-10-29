@@ -8072,6 +8072,7 @@ a.daw-wp-row:hover .daw-watch-go { color: var(--accent); }
 .daw-cal2-card a.t:hover { color: var(--accent); }
 .daw-cal2-card .m { display: block; font-size: .8rem; color: var(--muted); margin-top: 2px; }
 .daw-cal2-card .m.daw-cal2-next { color: var(--accent); font-weight: 600; }
+.daw-cal2-card .m.daw-cal2-days { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .daw-cal2-day { margin: 0; }
 .daw-cal2-dayh { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-text); }
 .daw-cal2-dayh span { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); }
