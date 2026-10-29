@@ -551,15 +551,46 @@ function daw_ae_audit( $post_id ) {
 		$fq      = daw_ae_rows( $post_id, 'daw_faq_q' );
 		$rules[] = array( 'SSS', $fq . ' soru', $fq >= 5 ? 'ok' : 'wait', $fq >= 5 ? '' : 'En az 5 soru önerilir' );
 
+		// A row repeating someone already credited in a higher tier is not
+		// drawn on the page (daw_get_cast), so it owes no role or episodes of
+		// its own; its empty cells are not counted against the tier.
+		$cast_above = array();
 		foreach ( array( 'main', 'supporting', 'guest' ) as $tier ) {
 			$p = daw_ae_rows( $post_id, "daw_cast_{$tier}_person" );
 			$r = daw_ae_rows( $post_id, "daw_cast_{$tier}_role" );
+			$dup_role  = 0;
+			$dup_rcell = 0;
+			$dup_eps   = 0;
+			$tp = (array) get_post_meta( $post_id, "daw_cast_{$tier}_person", true );
+			if ( $cast_above ) {
+				$tr = (array) get_post_meta( $post_id, "daw_cast_{$tier}_role", true );
+				$te = (array) get_post_meta( $post_id, "daw_cast_{$tier}_eps", true );
+				foreach ( $tp as $i => $pid ) {
+					if ( (int) $pid && isset( $cast_above[ (int) $pid ] ) ) {
+						if ( '' === trim( (string) ( $tr[ $i ] ?? '' ) ) ) {
+							$dup_role++;
+							// An empty cell that exists is counted by
+							// daw_ae_rows on the role side too.
+							$dup_rcell += array_key_exists( $i, $tr ) ? 1 : 0;
+						}
+						$dup_eps  += '' === trim( (string) ( $te[ $i ] ?? '' ) ) ? 1 : 0;
+					}
+				}
+			}
+			foreach ( $tp as $pid ) {
+				if ( (int) $pid ) {
+					$cast_above[ (int) $pid ] = true;
+				}
+			}
+			$p_eps = $p - $dup_eps;
+			$p     = $p - $dup_role;
+			$r     = $r - $dup_rcell;
 			if ( $p !== $r ) {
 				$rules[] = array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'no', 'Kişi ve rol sayısı eşit olmalı' );
 			}
-			if ( 'main' !== $tier && $p && 'film' !== $type ) {
+			if ( 'main' !== $tier && $p_eps > 0 && 'film' !== $type ) {
 				$eps = count( daw_ae_values( $post_id, "daw_cast_{$tier}_eps" ) );
-				if ( $eps < $p ) {
+				if ( $eps < $p_eps ) {
 					$yk      = "daw_cast_{$tier}_eps";
 					$rules[] = isset( $yok[ $yk ] ) && '' !== daw_ae_yok_check( $yk, $yok[ $yk ], $yok )
 						? array( 'Kadro bölüm bilgisi (' . $tier . ')', $eps . ' / ' . $p, 'eksik', daw_ae_yok_check( $yk, $yok[ $yk ], $yok ) )

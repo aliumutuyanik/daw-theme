@@ -1478,10 +1478,23 @@ function daw_get_cast( $post_id, $tier = 'main' ) {
 	$roles  = (array) rwmb_meta( "daw_cast_{$tier}_role", array(), $post_id );
 	$eps    = (array) rwmb_meta( "daw_cast_{$tier}_eps", array(), $post_id );
 
+	// A person already credited in a higher tier is shown there only. A guest
+	// row that repeats a lead or a supporting player is a leftover of an
+	// import, not a second credit; it stays in the data (owner, 29 Oct 2026:
+	// rows are never deleted) and simply is not drawn twice.
+	$above = array();
+	if ( 'supporting' === $tier || 'guest' === $tier ) {
+		$above = array_map( 'intval', (array) rwmb_meta( 'daw_cast_main_person', array(), $post_id ) );
+		if ( 'guest' === $tier ) {
+			$above = array_merge( $above, array_map( 'intval', (array) rwmb_meta( 'daw_cast_supporting_person', array(), $post_id ) ) );
+		}
+		$above = array_flip( array_filter( $above ) );
+	}
+
 	$out = array();
 	foreach ( $people as $i => $person_id ) {
 		$person_id = (int) $person_id;
-		if ( ! $person_id ) {
+		if ( ! $person_id || isset( $above[ $person_id ] ) ) {
 			continue;
 		}
 		$out[] = array(

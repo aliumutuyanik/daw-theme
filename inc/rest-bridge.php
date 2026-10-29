@@ -344,6 +344,66 @@ function daw_rb_routes() {
 		)
 	);
 
+	// Reading a reference page from the site's own server (29 Oct 2026). The
+	// research sessions run behind a network that cannot open Wikipedia,
+	// KOBIS or TheTVDB, so facts were checked from search snippets only. This
+	// fetches one page from a fixed list of reference hosts and returns its
+	// text; nothing else is reachable through it, and only an administrator
+	// can call it. Wikipedia answers best with ?action=raw (the wikitext).
+	register_rest_route(
+		'daw/v1',
+		'/src',
+		array(
+			'methods'             => 'GET',
+			'permission_callback' => 'daw_rb_admin',
+			'callback'            => static function ( WP_REST_Request $r ) {
+				$url  = esc_url_raw( (string) $r->get_param( 'url' ) );
+				$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+				$ok   = array( 'wikipedia.org', 'wikidata.org', 'thetvdb.com', 'kobis.or.kr', 'kmdb.or.kr', 'kofic.or.kr', 'tvmaze.com', 'namu.wiki', 'mydramalist.com', 'hancinema.net', 'wiki.d-addicts.com', 'asianwiki.com', 'imdb.com', 'themoviedb.org', 'imbc.com', 'kbs.co.kr', 'sbs.co.kr', 'jtbc.co.kr', 'tving.com', 'netflix.com' );
+				$hit  = false;
+				foreach ( $ok as $h ) {
+					if ( $host === $h || substr( $host, -strlen( '.' . $h ) ) === '.' . $h ) {
+						$hit = true;
+						break;
+					}
+				}
+				if ( ! $hit || 0 !== strpos( $url, 'https://' ) ) {
+					return new WP_Error( 'daw_src', 'Yalnız listedeki kaynak siteleri (https): ' . implode( ', ', $ok ), array( 'status' => 400 ) );
+				}
+				$res = wp_safe_remote_get(
+					$url,
+					array(
+						'timeout'     => 15,
+						'redirection' => 3,
+						'user-agent'  => 'Mozilla/5.0 (compatible; DiscoverAsianWorld/1.0; +https://discoverasianworld.com)',
+					)
+				);
+				if ( is_wp_error( $res ) ) {
+					return new WP_Error( 'daw_src', $res->get_error_message(), array( 'status' => 502 ) );
+				}
+				$body = (string) wp_remote_retrieve_body( $res );
+				$type = (string) wp_remote_retrieve_header( $res, 'content-type' );
+				if ( false !== stripos( $type, 'html' ) ) {
+					$body = preg_replace( '#<(script|style|noscript)[^>]*>.*?</\1>#is', ' ', $body );
+					$body = html_entity_decode( wp_strip_all_tags( $body ), ENT_QUOTES, 'UTF-8' );
+				}
+				$body = trim( preg_replace( '/[ \t]+/u', ' ', preg_replace( '/\s*\n\s*/u', "\n", $body ) ) );
+				$off  = max( 0, (int) $r->get_param( 'offset' ) );
+				$len  = 60000;
+				return daw_rb_nocache(
+					array(
+						'status' => (int) wp_remote_retrieve_response_code( $res ),
+						'url'    => $url,
+						'length' => mb_strlen( $body ),
+						'offset' => $off,
+						'text'   => mb_substr( $body, $off, $len ),
+						'more'   => mb_strlen( $body ) > $off + $len,
+					)
+				);
+			},
+		)
+	);
+
 	// Madde 73: a record's Search Console queries with their place on the page
 	// and their state (ok, var, skip, miss), the rows the audit panel shows.
 	register_rest_route(
