@@ -1401,12 +1401,33 @@ function daw_pin_rest_board( WP_REST_Request $r ) {
 }
 
 function daw_pin_rest_next( WP_REST_Request $r ) {
-	// A record handed out and not written back yet is handed out again, not a
-	// second record: Make may ask twice before Pinterest has answered.
+	// A record handed out and not written back is never handed out again.
+	// Handing it out again was meant for Make asking twice before Pinterest
+	// answered; but when the pin was made and only the answer to /pin/done
+	// was lost, it pinned the page a second time (First Love, 28 Oct 2026,
+	// 23:29 and 23:59 UTC). Now nothing goes for 30 minutes, then the record
+	// is taken as pinned with an unknown pin id, so it is never repeated.
 	$held = daw_pin_opt( 'daw_pin_held', array() );
-	if ( is_array( $held ) && ! empty( $held['id'] ) && time() - (int) $held['at'] < 30 * MINUTE_IN_SECONDS && daw_pin_log_count( (int) $held['id'] ) === (int) ( $held['n'] ?? 0 ) ) {
-		$item = daw_pin_item( (int) $held['id'], (string) ( $held['look'] ?? '' ) );
-		return is_wp_error( $item ) ? array( 'item' => null, 'why' => $item->get_error_message() ) : array( 'item' => $item );
+	if ( is_array( $held ) && ! empty( $held['id'] ) && daw_pin_log_count( (int) $held['id'] ) === (int) ( $held['n'] ?? 0 ) ) {
+		if ( time() - (int) $held['at'] < 30 * MINUTE_IN_SECONDS ) {
+			return array( 'item' => null, 'why' => 'waiting for the last answer' );
+		}
+		$hid = (int) $held['id'];
+		$log = get_post_meta( $hid, DAW_PIN_LOG, true );
+		$log = is_array( $log ) ? $log : array();
+		$img = daw_pin_image( $hid, (string) ( $held['look'] ?? '' ) );
+		$log[] = array(
+			'pin'   => 'unknown',
+			'board' => daw_pin_board_key( $hid ),
+			'img'   => is_wp_error( $img ) ? '' : $img['hash'],
+			'at'    => (int) $held['at'],
+		);
+		update_post_meta( $hid, DAW_PIN_LOG, $log );
+		delete_post_meta( $hid, DAW_PIN_AGAIN );
+		delete_option( 'daw_pin_held' );
+		$t           = daw_pin_today();
+		$t['pins'][] = array( $hid, (int) $held['at'] );
+		update_option( 'daw_pin_day', $t, false );
 	}
 
 	$why = daw_pin_wait_reason();
@@ -1591,7 +1612,7 @@ function daw_pin_save_due() {
 		$log = get_post_meta( $id, DAW_PIN_LOG, true );
 		$pin = null;
 		foreach ( is_array( $log ) ? $log : array() as $e ) {
-			if ( 'atlandi' !== ( $e['pin'] ?? '' ) ) {
+			if ( ! in_array( $e['pin'] ?? '', array( 'atlandi', 'unknown' ), true ) ) {
 				$pin = $e;
 				break;
 			}
@@ -1641,6 +1662,9 @@ function daw_pin_rest_saved( WP_REST_Request $r ) {
 }
 
 function daw_pin_log_count( $id ) {
+	// Read past the object cache: a log written by the last /pin/done can
+	// still read as missing there, and a page then looked unpinned.
+	wp_cache_delete( (int) $id, 'post_meta' );
 	$log = get_post_meta( $id, DAW_PIN_LOG, true );
 	return is_array( $log ) ? count( $log ) : 0;
 }
@@ -1649,11 +1673,20 @@ function daw_pin_log_count( $id ) {
 function daw_pin_record( $id, $pin ) {
 	$held = daw_pin_opt( 'daw_pin_held', array() );
 	$look = ( is_array( $held ) && (int) ( $held['id'] ?? 0 ) === (int) $id ) ? (string) ( $held['look'] ?? '' ) : '';
+	wp_cache_delete( (int) $id, 'post_meta' );
 	$img  = daw_pin_image( $id, $look );
 	$log = get_post_meta( $id, DAW_PIN_LOG, true );
 	$log = is_array( $log ) ? $log : array();
 	// The same answer twice (Make retrying a slow request) is written once.
 	if ( 'atlandi' !== $pin && in_array( $pin, array_map( 'strval', wp_list_pluck( $log, 'pin' ) ), true ) ) {
+		return;
+	}
+	// An answer that arrives after the record was taken as pinned fills in
+	// the pin id; the day already counted it.
+	$last = $log ? end( $log ) : array();
+	if ( 'unknown' === ( $last['pin'] ?? '' ) && 'atlandi' !== $pin ) {
+		$log[ count( $log ) - 1 ]['pin'] = $pin;
+		update_post_meta( $id, DAW_PIN_LOG, $log );
 		return;
 	}
 	$log[] = array(
@@ -1773,6 +1806,10 @@ function daw_pin_column_cell( $col, $post_id ) {
 			echo '<span style="color:#8a1f1f">Reddedildi</span>';
 			return;
 		}
+		if ( 'unknown' === $last['pin'] ) {
+			printf( 'Pinlendi<br><span style="font-size:11px;color:#8c8f94">%s · pin no. gelmedi</span>', esc_html( wp_date( 'd.m.Y', (int) $last['at'] ) ) );
+			return;
+		}
 		printf( '<a href="%s" target="_blank" rel="noopener">Pinlendi</a><br><span style="font-size:11px;color:#8c8f94">%s</span>', esc_url( 'https://www.pinterest.com/pin/' . rawurlencode( $last['pin'] ) . '/' ), esc_html( wp_date( 'd.m.Y', (int) $last['at'] ) ) );
 		return;
 	}
@@ -1797,6 +1834,8 @@ function daw_pin_box_html( $post ) {
 		foreach ( $log as $e ) {
 			if ( 'atlandi' === $e['pin'] ) {
 				printf( '<li>%s · Pinterest reddetti</li>', esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ) );
+			} elseif ( 'unknown' === $e['pin'] ) {
+				printf( '<li>%s · pinlendi, pin no. gelmedi</li>', esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ) );
 			} else {
 				printf( '<li><a href="%s" target="_blank" rel="noopener">%s</a> · %s</li>', esc_url( 'https://www.pinterest.com/pin/' . rawurlencode( $e['pin'] ) . '/' ), esc_html( wp_date( 'd.m.Y', (int) $e['at'] ) ), esc_html( 'old' === $e['board'] ? 'eski pin' : ( daw_pin_boards()[ $e['board'] ]['name'] ?? $e['board'] ) ) );
 			}
