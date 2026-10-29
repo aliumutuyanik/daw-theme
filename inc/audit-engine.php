@@ -1731,10 +1731,21 @@ function daw_ae_store( $post_id ) {
 		}
 	}
 	daw_ae_maybe_lock( $post_id, $a );
-	// Keyword coverage for the Posts list, from the page the audit just read.
+	// Keyword coverage for the Posts list, and the page summary the SEO
+	// inventory shows, from the page the audit just read (one fetch).
 	if ( function_exists( 'daw_ap_kw_cover' ) ) {
 		try {
 			daw_ap_kw_cover( $post_id );
+		} catch ( \Throwable $e ) {
+			unset( $e );
+		}
+	}
+	if ( function_exists( 'daw_pa_analyze' ) && function_exists( 'daw_pa_score' ) && function_exists( 'daw_pa_summary_write' ) ) {
+		try {
+			$pa = daw_pa_analyze( $post_id );
+			if ( ! empty( $pa['ok'] ) ) {
+				daw_pa_summary_write( $post_id, $pa, daw_pa_score( $post_id, $pa ) );
+			}
 		} catch ( \Throwable $e ) {
 			unset( $e );
 		}

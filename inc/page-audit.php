@@ -377,7 +377,15 @@ function daw_pa_summary_get( $post_id ) {
 		return null;
 	}
 	$data = json_decode( (string) $raw, true );
-	return is_array( $data ) ? $data : null;
+	// A summary written by an older parser is not shown as a result: the
+	// inventory listed the header and footer logos (alt="", decorative on
+	// purpose) as "2 missing alt" on every page long after the parser had
+	// stopped counting them (owner, 29 Oct 2026: "hatalı sonuç vermemesi
+	// lazım"). Version 2 is the parser that skips alt="".
+	if ( ! is_array( $data ) || (int) ( $data['v'] ?? 1 ) < 2 ) {
+		return null;
+	}
+	return $data;
 }
 
 function daw_pa_summary_write( $post_id, $parsed, $scored ) {
@@ -392,6 +400,7 @@ function daw_pa_summary_write( $post_id, $parsed, $scored ) {
 		'schema_bad'   => (int) ( $parsed['schema_bad'] ?? 0 ),
 		'failed'       => ! empty( $scored['failed'] ),
 		'at'           => gmdate( 'Y-m-d H:i' ),
+		'v'            => 2,
 	);
 	update_post_meta( $post_id, DAW_PA_META, wp_json_encode( $summary ) );
 	return $summary;
