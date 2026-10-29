@@ -589,7 +589,19 @@ function daw_ae_audit( $post_id ) {
 			$p     = $p - $dup_role;
 			$r     = $r - $dup_rcell;
 			if ( $p !== $r ) {
-				$rules[] = array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'no', 'Kişi ve rol sayısı eşit olmalı' );
+				// Fewer roles than people, and the role field carries a sourced
+				// madde 66 N/A: the names are credited, the parts were never
+				// published (Let's Go! 18942). It counts like the episode line
+				// below; a wrong count the other way stays red.
+				$rk = "daw_cast_{$tier}_role";
+				if ( $r < $p && isset( $yok[ $rk ] ) ) {
+					$why     = daw_ae_yok_check( $rk, $yok[ $rk ], $yok );
+					$rules[] = '' !== $why
+						? array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'eksik', $why )
+						: array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'yok', is_string( $yok[ $rk ] ) ? $yok[ $rk ] : 'Araştırıldı, kaynak yok' );
+				} else {
+					$rules[] = array( 'Kadro (' . $tier . ')', $p . ' kişi / ' . $r . ' rol', 'no', 'Kişi ve rol sayısı eşit olmalı' );
+				}
 			}
 			if ( 'main' !== $tier && $p_eps > 0 && 'film' !== $type ) {
 				$eps = count( daw_ae_values( $post_id, "daw_cast_{$tier}_eps" ) );
