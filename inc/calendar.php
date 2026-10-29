@@ -123,15 +123,40 @@ function daw_calendar_relative( $ts ) {
  * )
  */
 function daw_calendar_index() {
-	$gen = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
-	$key = 'daw_cal4_' . md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) );
+	// BUILT OFF THE REQUEST (1.77.15). Building the index reads every title's
+	// dates and episode list: about fourteen seconds on this host. Keyed on
+	// the browse generation, it was rebuilt by the first visitor after every
+	// save, and with records being saved all afternoon the home page and the
+	// calendar timed out with 504s (29 Oct 2026). Now a visitor always gets
+	// the last index at once; a changed generation or a new day only
+	// schedules a rebuild in the background, one at a time.
+	$gen  = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
+	$want = md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) );
+	$last = get_option( 'daw_cal_last' );
 
-	$cached = get_transient( $key );
-
-	if ( is_array( $cached ) ) {
-		return $cached;
+	if ( is_array( $last ) && isset( $last['events'] ) ) {
+		if ( ( $last['sig'] ?? '' ) !== $want && ! get_transient( 'daw_cal_lock' ) && ! wp_next_scheduled( 'daw_cal_rebuild' ) ) {
+			wp_schedule_single_event( time(), 'daw_cal_rebuild' );
+		}
+		return $last;
 	}
 
+	return daw_calendar_build( $want );
+}
+
+add_action( 'daw_cal_rebuild', 'daw_calendar_rebuild' );
+function daw_calendar_rebuild() {
+	if ( get_transient( 'daw_cal_lock' ) ) {
+		return;
+	}
+	set_transient( 'daw_cal_lock', 1, 5 * MINUTE_IN_SECONDS );
+	$gen = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
+	daw_calendar_build( md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) ) );
+	delete_transient( 'daw_cal_lock' );
+}
+
+/** Build the index and keep it as the last one. */
+function daw_calendar_build( $sig ) {
 	$ids = get_posts(
 		array(
 			'post_type'              => 'post',
@@ -149,6 +174,15 @@ function daw_calendar_index() {
 			),
 		)
 	);
+
+	// One query for the terms and one per hundred records for the meta,
+	// instead of several queries per record.
+	if ( $ids ) {
+		update_object_term_cache( $ids, 'post' );
+		foreach ( array_chunk( $ids, 100 ) as $chunk ) {
+			update_meta_cache( 'post', $chunk );
+		}
+	}
 
 	$now    = time();
 	$events = array();
@@ -249,7 +283,8 @@ function daw_calendar_index() {
 		'years'  => array( $first, max( $last, (int) wp_date( 'Y' ) + 1 ) ),
 	);
 
-	set_transient( $key, $out, 6 * HOUR_IN_SECONDS );
+	$out['sig'] = $sig;
+	update_option( 'daw_cal_last', $out, false );
 
 	return $out;
 }

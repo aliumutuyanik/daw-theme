@@ -239,7 +239,7 @@ function daw_pl_cell( $col, $post_id ) {
 /*
  * Records audited before 1.77.1 have no `_daw_pct` or `_daw_kwcov` yet. Each
  * hourly tick fills the percentage for up to 200 of them (read from the stored
- * audit, no page fetch) and the keyword coverage for 20 (one page fetch each),
+ * audit, no page fetch) and the keyword coverage for 5 (one page fetch each),
  * so the whole site is covered in a few days without loading the server.
  */
 add_action( 'daw_fix_tick', 'daw_pl_backfill', 80 );
@@ -271,7 +271,10 @@ function daw_pl_backfill() {
 		array(
 			'post_type'      => 'post',
 			'post_status'    => 'publish',
-			'posts_per_page' => 20,
+			// Five a tick: each is a full page render through a loopback
+			// request, and twenty in a row added to the load that gave the
+			// site 504s on 29 Oct 2026.
+			'posts_per_page' => 5,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery
