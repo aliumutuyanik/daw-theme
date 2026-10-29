@@ -126,7 +126,14 @@ function daw_pin_topic_board( $topic, $c ) {
  * daw_pin_board_ids option. 'also' marks a board a pin is saved to, never
  * its first board. 'kind' is the phrase a pin's title uses on that board.
  */
-function daw_pin_boards() {
+function daw_pin_boards( $fresh = false ) {
+	// Built once a request: the queue asks for it for every record, and each
+	// build read an option past the cache, a thousand reads a page (the
+	// Pinterest screen stopped loading, 29 Oct 2026).
+	static $memo = null;
+	if ( null !== $memo && ! $fresh ) {
+		return $memo;
+	}
 	$boards = array();
 	foreach ( daw_pin_countries() as $c ) {
 		foreach ( daw_pin_topics() as $t ) {
@@ -203,7 +210,7 @@ function daw_pin_boards() {
 			$boards[ $key ]['id'] = (string) $id;
 		}
 	}
-	return apply_filters( 'daw_pin_boards', $boards );
+	return $memo = apply_filters( 'daw_pin_boards', $boards );
 }
 
 /** The record's dw_country slug, '' when it has none. */
@@ -1397,6 +1404,7 @@ function daw_pin_rest_board( WP_REST_Request $r ) {
 	$ids         = is_array( $ids ) ? $ids : array();
 	$ids[ $key ] = $id;
 	update_option( 'daw_pin_board_ids', $ids, false );
+	daw_pin_boards( true );
 	return array( 'ok' => true, 'key' => $key, 'board_id' => $id );
 }
 
@@ -1920,8 +1928,14 @@ function daw_pin_page() {
 		return;
 	}
 	$s  = daw_pin_settings();
-	$st = daw_pin_state();
-	update_option( 'daw_pin_state', $st, false );
+	// The counts walk every record; the screen shows the last ones Make's
+	// status call or this screen saved, rebuilt when an hour old or asked.
+	$st = get_option( 'daw_pin_state', array() );
+	if ( ! is_array( $st ) || empty( $st['at'] ) || time() - (int) $st['at'] > HOUR_IN_SECONDS || ! empty( $_GET['refresh'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+		$st = daw_pin_state();
+		update_option( 'daw_pin_state', $st, false );
+	}
+	$st += array( 'waiting' => 0, 'pinned' => 0, 'skipped' => 0, 'today' => 0, 'cap' => 0, 'wait' => '', 'days' => 0, 'hot' => 0 );
 	$why = array(
 		''                  => 'Şimdi pin gidebilir',
 		'off'               => 'Kapalı',
@@ -1932,13 +1946,17 @@ function daw_pin_page() {
 
 	echo '<div class="wrap"><h1>Pinterest</h1>';
 	printf(
-		'<p><strong>%d</strong> kayıt sırada · <strong>%d</strong> pinlendi · <strong>%d</strong> gönderilmeyecek · bugün <strong>%d / %d</strong> · %s</p>',
+		'<p><strong>%d</strong> kayıt sırada (%d yayında / yakında) · <strong>%d</strong> pinlendi · <strong>%d</strong> gönderilmeyecek · bugün <strong>%d / %d</strong> · %s · bu hızla yaklaşık <strong>%d gün</strong></p><p class="description">Sayılar %s itibarıyla. <a href="%s">Şimdi yenile</a></p>',
 		(int) $st['waiting'],
+		(int) $st['hot'],
 		(int) $st['pinned'],
 		(int) $st['skipped'],
 		(int) $st['today'],
 		(int) $st['cap'],
-		esc_html( $why[ $st['wait'] ] ?? $st['wait'] )
+		esc_html( $why[ $st['wait'] ] ?? $st['wait'] ),
+		(int) $st['days'],
+		esc_html( wp_date( 'd.m.Y H:i', (int) ( $st['at'] ?? time() ) ) ),
+		esc_url( admin_url( 'admin.php?page=daw-pinterest&refresh=1' ) )
 	);
 
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
@@ -1983,15 +2001,17 @@ function daw_pin_page() {
 		if ( ! daw_pin_ready( $id ) ) {
 			continue;
 		}
-		$d   = daw_pin_text( $id );
-		$ph  = daw_pin_photo( $id );
-		$src = ( $ph && 'tmdb' === $ph['kind'] && 'card' !== $s['look'] )
-			? 'https://image.tmdb.org/t/p/w342' . substr( $ph['id'], 5 )
-			: wp_nonce_url( admin_url( 'admin-post.php?action=daw_pin_preview&post=' . $id ), 'daw_pin_preview' );
+		$ph = daw_pin_photo( $id );
+		// A drawn card is made on the server; six at once held up every PHP
+		// worker the host gives the site. It opens on a click instead.
+		$card = wp_nonce_url( admin_url( 'admin-post.php?action=daw_pin_preview&post=' . $id ), 'daw_pin_preview' );
+		$img  = ( $ph && 'tmdb' === $ph['kind'] && 'card' !== $s['look'] )
+			? sprintf( '<img src="%s" width="200" height="300" style="display:block;aspect-ratio:2/3;background:#eee" loading="lazy" alt="">', esc_url( 'https://image.tmdb.org/t/p/w342' . substr( $ph['id'], 5 ) ) )
+			: sprintf( '<a href="%s" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:200px;height:300px;background:#eee">Kartı gör</a>', esc_url( $card ) );
 		printf(
-			'<div style="width:220px"><img src="%s" width="200" height="300" style="display:block;aspect-ratio:2/3;background:#eee" loading="lazy" alt=""><p style="margin:6px 0 0;font-weight:600">%s</p><p style="margin:2px 0;color:#646970;font-size:12px">%s</p></div>',
-			esc_url( $src ),
-			esc_html( $d['title'] ),
+			'<div style="width:220px">%s<p style="margin:6px 0 0;font-weight:600">%s</p><p style="margin:2px 0;color:#646970;font-size:12px">%s</p></div>',
+			$img, // phpcs:ignore WordPress.Security.EscapeOutput
+			esc_html( daw_pin_plain( get_the_title( $id ) ) ),
 			esc_html( daw_pin_boards()[ daw_pin_board_key( $id ) ]['name'] ?? '' )
 		);
 		$n++;
@@ -1999,7 +2019,7 @@ function daw_pin_page() {
 	echo '</div>';
 
 	// The plan: what goes on which day at the current pace.
-	$plan = daw_pin_plan( 60 );
+	$plan = daw_pin_plan( 40 );
 	if ( $plan ) {
 		$total = (int) $st['waiting'];
 		echo '<h2>Takvim</h2>';
