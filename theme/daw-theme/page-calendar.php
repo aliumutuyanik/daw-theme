@@ -54,7 +54,7 @@ $event_row = static function ( $e ) use ( $req, $base ) {
 	<li class="daw-cal2-ev">
 		<a class="daw-cal2-pic" href="<?php echo esc_url( get_permalink( $id ) ); ?>" tabindex="-1" aria-hidden="true"><span class="daw-poster"><?php echo daw_poster( $id, 'thumbnail' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span></a>
 		<span class="daw-cal2-body">
-			<span class="daw-cal2-kind <?php echo $prem ? 'prem' : 'fin'; ?>"><?php echo $prem ? esc_html__( 'Premiere', 'daw' ) : esc_html__( 'Finale', 'daw' ); ?></span>
+			<span class="daw-cal2-kind <?php echo $prem ? 'prem' : 'fin'; ?>"><?php echo $prem ? ( 'film' === $e['type'] ? esc_html__( 'Release', 'daw' ) : esc_html__( 'Premiere', 'daw' ) ) : esc_html__( 'Finale', 'daw' ); ?></span>
 			<a class="n" href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a>
 			<span class="m"><?php echo esc_html( implode( ' · ', $facts ) ); ?></span>
 		</span>
@@ -113,7 +113,7 @@ $n_done = count( $data['done'] );
 		<?php if ( ! $is_m ) : ?>
 			<ul class="daw-cal2-jump">
 				<li><a class="daw-cal2-chip" href="#now"><?php esc_html_e( 'Airing now', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_now ) ); ?></b></a></li>
-				<li><a class="daw-cal2-chip" href="#next"><?php esc_html_e( 'Coming up', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_next ) ); ?></b></a></li>
+				<li><a class="daw-cal2-chip" href="#next"><?php esc_html_e( 'Upcoming', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_next ) ); ?></b></a></li>
 				<li><a class="daw-cal2-chip" href="#done"><?php esc_html_e( 'Just finished', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_done ) ); ?></b></a></li>
 			</ul>
 		<?php else : ?>
@@ -187,7 +187,7 @@ $n_done = count( $data['done'] );
 		</section>
 
 		<section class="daw-cal2-sec" id="next">
-			<h2 class="daw-cal2-h"><?php esc_html_e( 'Coming up', 'daw' ); ?> <small><?php esc_html_e( 'dated premieres, soonest first', 'daw' ); ?></small></h2>
+			<h2 class="daw-cal2-h"><?php esc_html_e( 'Upcoming', 'daw' ); ?> <small><?php esc_html_e( 'dated premieres and releases, soonest first', 'daw' ); ?></small></h2>
 			<?php if ( ! $data['next'] && ! $data['tbc'] ) : ?>
 				<p class="daw-empty"><?php esc_html_e( 'No upcoming titles are dated yet. A title appears here once a premiere date is sourced.', 'daw' ); ?></p>
 			<?php else : ?>

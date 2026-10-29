@@ -30,7 +30,7 @@ const DAW_CALENDAR_SLUG = 'airing-calendar';
 
 /** The record types that have an air date worth putting on a calendar. */
 function daw_calendar_types() {
-	return array( 'drama', 'variety', 'anime' );
+	return array( 'drama', 'film', 'variety', 'anime' );
 }
 
 /** Type filter labels, slug => label. */
@@ -38,6 +38,7 @@ function daw_calendar_filters() {
 	return array(
 		'all'     => __( 'All', 'daw' ),
 		'drama'   => __( 'Dramas', 'daw' ),
+		'film'    => __( 'Movies', 'daw' ),
 		'variety' => __( 'Variety', 'daw' ),
 		'anime'   => __( 'Anime', 'daw' ),
 	);
@@ -170,7 +171,8 @@ function daw_calendar_index() {
 		}
 
 		// A one-day run is one event, not a premiere and a finale on top of each other.
-		if ( $end && $end !== $start && $end >= $start ) {
+		// A film has a release, not a finale: a stored end date would draw one.
+		if ( 'film' !== $type && $end && $end !== $start && $end >= $start ) {
 			$events[] = array( 'id' => (int) $id, 'when' => $end, 'kind' => 'fin', 'type' => $type );
 		}
 
