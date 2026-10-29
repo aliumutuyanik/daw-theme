@@ -205,6 +205,15 @@ function daw_quiz_rows( $post_id ) {
 			}
 		}
 
+		// A linked record with no upload of its own still has the picture its
+		// page draws from TMDB (tmdb-remote.php). Kim Soo Hyun showed an empty
+		// circle in the actors quiz because only uploads were asked (owner,
+		// 29 Oct 2026).
+		if ( '' === $image && $record && function_exists( 'daw_remote_mode_for' ) && 'remote' === daw_remote_mode_for( $record ) ) {
+			$path  = function_exists( 'daw_tmdb_img_path' ) ? daw_tmdb_img_path( $record ) : '';
+			$image = '' !== $path ? 'https://image.tmdb.org/t/p/w185' . $path : '';
+		}
+
 		$options = array_values(
 			array_filter(
 				array_map( 'trim', preg_split( '/\r\n|\r|\n/', (string) ( $row['daw_q_options'] ?? '' ) ) )
