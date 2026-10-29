@@ -124,7 +124,7 @@ function daw_calendar_relative( $ts ) {
  */
 function daw_calendar_index() {
 	$gen = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
-	$key = 'daw_cal2_' . md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) );
+	$key = 'daw_cal3_' . md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) );
 
 	$cached = get_transient( $key );
 
@@ -174,6 +174,38 @@ function daw_calendar_index() {
 		// A film has a release, not a finale: a stored end date would draw one.
 		if ( 'film' !== $type && $end && $end !== $start && $end >= $start ) {
 			$events[] = array( 'id' => (int) $id, 'when' => $end, 'kind' => 'fin', 'type' => $type );
+		}
+
+		// EPISODES (1.76.9, owner 29 Oct 2026: "bölümler ile dolu olsun, hangi
+		// bölüm ne zaman yayınlanıyor gözüksün"). Every dated row of the
+		// record's own episode list becomes an event, for titles that started
+		// in the last 400 days or have yet to: the month grid fills with
+		// "Ep 7" pills and the list view gets a this-week schedule. A row on
+		// the premiere or finale day is already that event, so it is skipped.
+		if ( 'film' !== $type && ( ! $start || $start > $now - 400 * DAY_IN_SECONDS ) ) {
+			$ep_dates = get_post_meta( $id, 'daw_ep_date', true );
+			if ( is_array( $ep_dates ) ) {
+				$ep_nos = get_post_meta( $id, 'daw_ep_no', true );
+				$ep_nos = is_array( $ep_nos ) ? array_values( $ep_nos ) : array();
+				$skip   = array( $start ? gmdate( 'Y-m-d', $start ) : '', $end ? gmdate( 'Y-m-d', $end ) : '' );
+				$seen   = array();
+				foreach ( array_values( $ep_dates ) as $i => $d ) {
+					$d = substr( trim( (string) $d ), 0, 10 );
+					if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) || in_array( $d, $skip, true ) || isset( $seen[ $d ] ) ) {
+						continue;
+					}
+					// Two episodes on one day (a double bill) are one row: "Ep 3-4".
+					$no = trim( (string) ( $ep_nos[ $i ] ?? '' ) );
+					foreach ( array_values( $ep_dates ) as $j => $d2 ) {
+						if ( $j > $i && substr( trim( (string) $d2 ), 0, 10 ) === $d && '' !== trim( (string) ( $ep_nos[ $j ] ?? '' ) ) ) {
+							$no = $no . '-' . trim( (string) $ep_nos[ $j ] );
+						}
+					}
+					$no         = preg_replace( '/-(?:[^-]+-)+/', '-', $no );
+					$seen[ $d ] = true;
+					$events[]   = array( 'id' => (int) $id, 'when' => strtotime( $d . ' 00:00:00 UTC' ), 'kind' => 'ep', 'type' => $type, 'no' => $no );
+				}
+			}
 		}
 
 		if ( 'onair' === $slug ) {
@@ -272,6 +304,8 @@ function daw_calendar_data( $req ) {
 	$next   = array();
 	$done   = array();
 	$month  = array();
+	$week   = array();
+	$wend   = gmdate( 'Y-m-d', strtotime( $today . ' UTC' ) + 6 * DAY_IN_SECONDS );
 
 	foreach ( $ev as $e ) {
 		$d = gmdate( 'Y-m-d', $e['when'] );
@@ -284,6 +318,11 @@ function daw_calendar_data( $req ) {
 
 		if ( substr( $d, 0, 7 ) === $req['month'] ) {
 			$month[] = $e;
+		}
+
+		// This week: every episode, premiere and finale from today to six days on.
+		if ( $d >= $today && $d <= $wend ) {
+			$week[] = $e;
 		}
 	}
 
@@ -301,6 +340,7 @@ function daw_calendar_data( $req ) {
 		'tbc'   => daw_calendar_only( $idx['tbc'], $req['type'] ),
 		'done'  => array_reverse( $done ),
 		'month' => $month,
+		'week'  => $week,
 		'years' => $idx['years'],
 	);
 }
