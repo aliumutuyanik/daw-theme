@@ -109,6 +109,53 @@ function daw_onair_home() {
 	return $out;
 }
 
+/*
+ * UPCOMING ON THE HOME PAGE (1.76.5, owner 29 Oct 2026: "upcoming gibi bişe
+ * yapmak lazım, gelecek beklenen")
+ * The rail under On air: every title whose premiere or release is dated after
+ * today, soonest first, then the ones marked upcoming with no date yet. The
+ * same calendar index feeds both, so a title moves from this rail to On air
+ * on its premiere day without anyone touching it.
+ *
+ * @return array<int, array{id:int, when:int}> when is 0 for an undated title.
+ */
+function daw_upcoming_home() {
+	$gen    = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
+	$key    = 'daw_upc_v1_' . md5( ( defined( 'DAW_VERSION' ) ? DAW_VERSION : '' ) . '|' . current_time( 'Y-m-d' ) . '|' . $gen );
+	$cached = get_transient( $key );
+	if ( is_array( $cached ) ) {
+		return $cached;
+	}
+	$out = array();
+	if ( ! function_exists( 'daw_calendar_index' ) ) {
+		return $out;
+	}
+	$idx   = daw_calendar_index();
+	$today = current_time( 'Y-m-d' );
+	$seen  = array();
+	$keep  = static function ( $id ) {
+		return 'publish' === get_post_status( $id ) && ! ( function_exists( 'daw_thin_is_held' ) && daw_thin_is_held( $id ) );
+	};
+	foreach ( (array) ( $idx['events'] ?? array() ) as $e ) {
+		$id = (int) $e['id'];
+		if ( 'prem' !== $e['kind'] || gmdate( 'Y-m-d', (int) $e['when'] ) <= $today || isset( $seen[ $id ] ) || ! $keep( $id ) ) {
+			continue;
+		}
+		$seen[ $id ] = true;
+		$out[]       = array( 'id' => $id, 'when' => (int) $e['when'] );
+	}
+	foreach ( (array) ( $idx['tbc'] ?? array() ) as $t ) {
+		$id = (int) $t['id'];
+		if ( ! isset( $seen[ $id ] ) && $keep( $id ) ) {
+			$seen[ $id ] = true;
+			$out[]       = array( 'id' => $id, 'when' => 0 );
+		}
+	}
+	$out = array_slice( $out, 0, 24 );
+	set_transient( $key, $out, 3 * HOUR_IN_SECONDS );
+	return $out;
+}
+
 /** Records marked ongoing with an episode dated in the last 14 days or the next 7. */
 function daw_onair_long_runners() {
 	$ids = get_posts(

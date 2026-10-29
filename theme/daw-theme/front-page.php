@@ -215,25 +215,63 @@ if ( $featured ) :
 			</div>
 			<button type="button" class="daw-onair-btn is-next" aria-label="<?php esc_attr_e( 'Scroll forward', 'daw' ); ?>" hidden>&#8250;</button>
 		</div>
+
+	<?php endif; ?>
+
+	<?php
+	/* ------------------------------------------------------------ upcoming -- */
+
+	// Dated premieres and releases after today, soonest first, then titles
+	// marked upcoming with no date (daw-core home-onair.php, 1.76.5).
+	$upcoming = function_exists( 'daw_upcoming_home' ) ? daw_upcoming_home() : array();
+	if ( $upcoming ) :
+		daw_hub_head(
+			__( 'Upcoming', 'daw' ),
+			__( 'New dramas and movies on the way, soonest premiere first.', 'daw' ),
+			daw_page_url( 'airing-calendar' ) . '#next',
+			__( 'Airing calendar', 'daw' )
+		);
+		?>
+		<div class="daw-onair daw-section daw-section-tight">
+			<button type="button" class="daw-onair-btn is-prev" aria-label="<?php esc_attr_e( 'Scroll back', 'daw' ); ?>" hidden>&#8249;</button>
+			<div class="daw-rail-row daw-onair-rail">
+				<?php
+				// A poster-less card goes to the end (1.75.80); an undated
+				// title carries no badge rather than a "TBA" (rule 2.2).
+				$uwhen = wp_list_pluck( $upcoming, 'when', 'id' );
+				$uids  = array_keys( $uwhen );
+				if ( function_exists( 'daw_pictured_first' ) ) {
+					$uids = daw_pictured_first( $uids );
+				}
+				foreach ( $uids as $uid ) {
+					$ubadge = $uwhen[ $uid ] ? wp_date( 'j M', $uwhen[ $uid ], new DateTimeZone( 'UTC' ) ) : '';
+					daw_hub_title_card( $uid, 'kind', $ubadge );
+				}
+				?>
+			</div>
+			<button type="button" class="daw-onair-btn is-next" aria-label="<?php esc_attr_e( 'Scroll forward', 'daw' ); ?>" hidden>&#8250;</button>
+		</div>
+	<?php endif; ?>
+
 		<script>
 		(function () {
-			var r = document.getElementById('daw-onair-rail');
-			if (!r) { return; }
-			var w = r.parentNode, p = w.querySelector('.is-prev'), n = w.querySelector('.is-next');
-			function sync() {
-				var over = r.scrollWidth > r.clientWidth + 4;
-				p.hidden = !over || r.scrollLeft < 8;
-				n.hidden = !over || r.scrollLeft + r.clientWidth > r.scrollWidth - 8;
-			}
-			function step(d) { r.scrollBy({ left: d * r.clientWidth * 0.8, behavior: 'smooth' }); }
-			p.addEventListener('click', function () { step(-1); });
-			n.addEventListener('click', function () { step(1); });
-			r.addEventListener('scroll', sync, { passive: true });
-			window.addEventListener('resize', sync);
-			sync();
+			document.querySelectorAll('.daw-onair').forEach(function (w) {
+				var r = w.querySelector('.daw-onair-rail'), p = w.querySelector('.is-prev'), n = w.querySelector('.is-next');
+				if (!r) { return; }
+				function sync() {
+					var over = r.scrollWidth > r.clientWidth + 4;
+					p.hidden = !over || r.scrollLeft < 8;
+					n.hidden = !over || r.scrollLeft + r.clientWidth > r.scrollWidth - 8;
+				}
+				function step(d) { r.scrollBy({ left: d * r.clientWidth * 0.8, behavior: 'smooth' }); }
+				p.addEventListener('click', function () { step(-1); });
+				n.addEventListener('click', function () { step(1); });
+				r.addEventListener('scroll', sync, { passive: true });
+				window.addEventListener('resize', sync);
+				sync();
+			});
 		})();
 		</script>
-	<?php endif; ?>
 
 	<?php
 	/* --------------------------------------------------- browse by country -- */
