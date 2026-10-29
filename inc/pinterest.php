@@ -385,14 +385,26 @@ function daw_pin_settings() {
 		$s['rv'] = 4;
 		update_option( 'daw_pin', $s, false );
 	}
+	// Every published record goes, not only the locked ones: over a thousand
+	// pages are fit to share, and pages already pinned get a new picture
+	// (owner, 29 Oct 2026). A record not locked still needs a written
+	// summary (daw_pin_fit). The day moves to 20, then 25.
+	if ( is_array( $s ) && $s && (int) ( $s['rv'] ?? 0 ) < 5 ) {
+		$s['scope'] = 'all';
+		if ( '15,20,25' === ( $s['ramp'] ?? '15,20,25' ) ) {
+			$s['ramp'] = '20,25,25';
+		}
+		$s['rv'] = 5;
+		update_option( 'daw_pin', $s, false );
+	}
 	return wp_parse_args(
 		is_array( $s ) ? $s : array(),
 		array(
 			'on'    => 1,
-			'scope' => 'locked', // locked | all
+			'scope' => 'all',    // locked | all
 			'from'  => 6,        // New York hours
 			'to'    => 24,
-			'ramp'  => '15,20,25', // a day: weeks 1-2, weeks 3-4, after
+			'ramp'  => '20,25,25', // a day: weeks 1-2, weeks 3-4, after
 			'start' => '',       // Y-m-d of the first pin, set by the first pin
 			'look'  => 'direct', // direct: the TMDB picture as it is | card: drawn card
 			'saves' => 6,        // saves of existing pins to more boards, a day
@@ -422,7 +434,7 @@ function daw_pin_readable( $keys ) {
 /** Pins allowed today, by how long the account has been pinning. */
 function daw_pin_cap_today() {
 	$s    = daw_pin_settings();
-	$ramp = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 15, 20, 25 );
+	$ramp = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 20, 25, 25 );
 	if ( '' === $s['start'] ) {
 		return max( 1, $ramp[0] );
 	}
@@ -484,9 +496,36 @@ function daw_pin_candidates() {
 	if ( ! $ids ) {
 		return array();
 	}
+	// Sorting a thousand records reads their dates and visits; the order is
+	// kept for ten minutes and only records pinned since are taken out.
+	$key    = 'daw_pin_order_' . md5( implode( ',', array( $s['scope'], count( $ids ), max( $ids ) ) ) );
+	$sorted = get_transient( $key );
+	if ( is_array( $sorted ) ) {
+		return array_values( array_intersect( $sorted, array_map( 'intval', $ids ) ) );
+	}
 	update_meta_cache( 'post', $ids );
+	if ( 'all' === $s['scope'] ) {
+		$ids = array_filter( $ids, 'daw_pin_fit' );
+	}
 	usort( $ids, 'daw_pin_order' );
-	return array_map( 'intval', $ids );
+	$ids = array_map( 'intval', $ids );
+	set_transient( $key, $ids, 10 * MINUTE_IN_SECONDS );
+	return $ids;
+}
+
+/**
+ * Fit to share without the lock: locked, or a page with its written
+ * summary and something to show (a picture, or the drawn card of a record
+ * with a type the cards know).
+ */
+function daw_pin_fit( $post_id ) {
+	if ( function_exists( 'daw_ae_is_locked' ) && daw_ae_is_locked( $post_id ) ) {
+		return true;
+	}
+	if ( '' === daw_pin_board_key( $post_id ) ) {
+		return false;
+	}
+	return '' !== trim( (string) get_post_meta( $post_id, 'rank_math_description', true ) );
 }
 
 /**
@@ -539,8 +578,8 @@ function daw_pin_hot_unlocked() {
  * How soon a record should go, 0 first: what people are searching this week
  * before what they searched last month (owner, 29 Oct 2026).
  *
- * 0  a drama or variety show on air now, or news from the last three days
- * 1  a drama or movie starting in the next 30 days
+ * 0  a drama or variety show on air now, a drama or movie starting in the
+ *    next 30 days, or news from the last three days
  * 2  one that started or ended in the last 120 days
  * 3  everything else
  */
@@ -561,7 +600,7 @@ function daw_pin_tier( $post_id ) {
 		if ( 'onair' === $status && 'film' !== $type ) {
 			$tier = 0;
 		} elseif ( $start > $now && $start < $now + 30 * DAY_IN_SECONDS ) {
-			$tier = 1;
+			$tier = 0;
 		} elseif ( max( $start, $end ) > $now - 120 * DAY_IN_SECONDS && max( $start, $end ) <= $now + DAY_IN_SECONDS ) {
 			$tier = 2;
 		}
@@ -722,7 +761,7 @@ function daw_pin_second_candidates() {
  */
 function daw_pin_plan( $limit = 60 ) {
 	$s     = daw_pin_settings();
-	$ramp  = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 15, 20, 25 );
+	$ramp  = array_map( 'intval', explode( ',', (string) $s['ramp'] ) ) + array( 20, 25, 25 );
 	$start = '' !== $s['start'] ? strtotime( $s['start'] . ' 00:00:00 UTC' ) : time();
 	$day   = new DateTime( 'now', daw_pin_tz() );
 	$left  = daw_pin_cap_today() - count( daw_pin_today()['pins'] );
@@ -1699,6 +1738,8 @@ function daw_pin_state() {
 	return array(
 		'waiting' => count( $cand = daw_pin_candidates() ),
 		'hot'     => count( array_filter( $cand, static fn( $id ) => daw_pin_tier( $id ) <= 1 ) ),
+		// Days until every page has its first pin and every poster pin its card.
+		'days'    => (int) ceil( ( count( $cand ) + count( daw_pin_second_candidates() ) ) / max( 1, daw_pin_cap_today() ) ),
 		'pinned'  => $pinned,
 		'skipped' => $skip,
 		'today'   => count( $t['pins'] ),
@@ -1810,10 +1851,10 @@ function daw_pin_settings_save() {
 	$s['scope'] = isset( $_POST['scope'] ) && 'all' === $_POST['scope'] ? 'all' : 'locked';
 	$s['from']  = max( 0, min( 23, (int) ( $_POST['from'] ?? 6 ) ) );
 	$s['to']    = max( $s['from'] + 1, min( 24, (int) ( $_POST['to'] ?? 24 ) ) );
-	$ramp       = array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['ramp'] ?? '15,20,25' ) ) ) );
+	$ramp       = array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['ramp'] ?? '20,25,25' ) ) ) );
 	$s['look']  = isset( $_POST['look'] ) && 'card' === $_POST['look'] ? 'card' : 'direct';
 	$s['ramp']  = implode( ',', array_slice( array_pad( array_filter( $ramp ), 3, 25 ), 0, 3 ) );
-	$s['rv']    = 4;
+	$s['rv']    = 5;
 	update_option( 'daw_pin', $s, false );
 	daw_pin_state_save();
 	wp_safe_redirect( admin_url( 'admin.php?page=daw-pinterest&saved=1' ) );
