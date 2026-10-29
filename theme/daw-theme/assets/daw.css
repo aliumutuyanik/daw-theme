@@ -2391,43 +2391,30 @@ html { scroll-behavior: smooth; }
 	.daw-stat-rate { margin-top: 14px; flex-basis: 100%; }
 }
 @media (max-width: 760px) {
-	/* Poster beside the title, everything else across the full width. The
-	   poster is 104px because that is the largest thumbnail that still leaves
-	   the title a readable measure at 360px. */
+	/* POSTER AND TITLE SIDE BY SIDE, FACTS IN A PANEL (1.77.7, owner's
+	   pick of four mock-ups, 29 Oct 2026). The poster and the title share
+	   the first row, the title block centred on the poster's height so a
+	   short or a long title both sit balanced beside it. The channel,
+	   episodes, status and genres go in one plain panel under them, the
+	   dates, button and vote run the full width below. A float left the
+	   text hugging the poster; a grid with the facts beside it left a gap
+	   under one side or the other. */
 	.daw-hero {
-		grid-template-columns: 104px minmax(0, 1fr);
+		grid-template-columns: 120px minmax(0, 1fr);
 		grid-template-areas:
 			"poster id"
-			"poster sub"
 			"meta   meta";
-		grid-template-rows: auto 1fr auto;
-		column-gap: 14px;
-		row-gap: 14px;
-		padding: 16px 0 6px;
+		grid-template-rows: auto auto;
+		column-gap: 16px;
+		row-gap: 16px;
+		padding: 18px 0 8px;
 	}
-	/* THE POSTER AS A FLOAT (1.77.6, owner 29 Oct 2026: "alanlar tam olarak
-	   doğru kullanılsın"). In a grid one side was always left empty: a short
-	   title left a strip beside the poster, a long one left a strip under
-	   it. Floated, the title, the facts and the genres start beside the
-	   poster and carry on under it once it ends, magazine style, so neither
-	   side has a gap. The dates, the button and the vote clear the float and
-	   run the full width. Flex rows here would sit beside the float as a
-	   block and leave the gap again, so they become plain inline flow. */
-	.daw-hero { display: block; }
-	.daw-hero::after { content: ""; display: block; clear: both; }
-	.daw-hero-poster { float: left; width: 104px; margin: 0 14px 6px 0; }
-	.daw-hero-id { margin-bottom: 10px; }
-	.daw-hero-meta { display: contents; }
-	.daw-hero-sub { display: block; }
-	.daw-hero-sub .daw-facts { display: block; line-height: 1.55; }
-	.daw-hero-sub .daw-status { margin: 4px 0 0; vertical-align: middle; }
-	.daw-hero-sub .daw-hero-row { display: block; margin-top: 10px; }
-	.daw-hero-sub .daw-metarow { display: block; margin-top: 0; }
-	.daw-hero-sub .daw-chip { margin: 0 6px 6px 0; font-size: .78rem; padding: 3px 10px; min-height: 28px; }
-	.daw-hero .daw-native { display: block; }
-	.daw-hero .daw-native > span { display: inline; margin-right: 10px; }
-	.daw-hero-meta > :not(.daw-hero-sub) { clear: both; }
-	.daw-hero-meta > .daw-hero-sub + * { margin-top: 14px; }
+	.daw-hero-poster { align-self: center; }
+	.daw-hero-id { align-self: center; }
+	.daw-hero-sub { gap: 10px; padding: 12px 14px; background: var(--band); border-radius: 12px; }
+	.daw-hero-sub .daw-metarow { margin-top: 0; gap: 6px; }
+	.daw-hero-sub .daw-hero-row { margin: 0; padding: 0; border: 0; }
+	.daw-hero-sub .daw-chip { background: #fff; font-size: .8rem; padding: 3px 11px; min-height: 30px; }
 	.daw-stickynav { margin-top: 10px; }
 	.daw-hero h1 { font-size: clamp(1.45rem, 6.4vw, 1.9rem); }
 	.daw-native { font-size: .98rem; }
