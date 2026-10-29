@@ -35,7 +35,10 @@ defined( 'ABSPATH' ) || exit;
  * @return array{today: array<int, array{id:int, ep:string}>, onair: int[]}
  */
 function daw_onair_home() {
-	$key    = 'daw_onair_v1_' . md5( ( defined( 'DAW_VERSION' ) ? DAW_VERSION : '' ) . '|' . current_time( 'Y-m-d' ) );
+	// The browse generation moves when a record is published or edited, so a
+	// title opened today joins the list today instead of tomorrow.
+	$gen    = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
+	$key    = 'daw_onair_v1_' . md5( ( defined( 'DAW_VERSION' ) ? DAW_VERSION : '' ) . '|' . current_time( 'Y-m-d' ) . '|' . $gen );
 	$cached = get_transient( $key );
 	if ( is_array( $cached ) ) {
 		return $cached;
