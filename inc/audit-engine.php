@@ -563,7 +563,10 @@ function daw_ae_audit( $post_id ) {
 			$dup_eps   = 0;
 			$tp = (array) get_post_meta( $post_id, "daw_cast_{$tier}_person", true );
 			if ( $cast_above ) {
-				$tr = (array) get_post_meta( $post_id, "daw_cast_{$tier}_role", true );
+				$tr_raw = get_post_meta( $post_id, "daw_cast_{$tier}_role", true );
+				// An empty string cast to an array has a cell daw_ae_rows never
+				// counted, which once read a role count of -1 (14206).
+				$tr = is_array( $tr_raw ) ? $tr_raw : ( '' === trim( (string) $tr_raw ) ? array() : array( $tr_raw ) );
 				$te = (array) get_post_meta( $post_id, "daw_cast_{$tier}_eps", true );
 				foreach ( $tp as $i => $pid ) {
 					if ( (int) $pid && isset( $cast_above[ (int) $pid ] ) ) {
