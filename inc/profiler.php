@@ -115,3 +115,37 @@ function daw_prof_store() {
 	update_option( 'daw_prof_last', array_slice( $runs, -8 ), false );
 	update_option( 'daw_prof_runs', max( 0, (int) get_option( 'daw_prof_runs', 0 ) - 1 ), false );
 }
+
+/*
+ * GET /daw/v1/prof reads the measured loads; POST /daw/v1/prof {"runs":5}
+ * measures the next five admin page loads. Administrators only.
+ */
+add_action( 'rest_api_init', 'daw_prof_routes' );
+function daw_prof_routes() {
+	register_rest_route(
+		'daw/v1',
+		'/prof',
+		array(
+			array(
+				'methods'             => 'GET',
+				'permission_callback' => static fn() => current_user_can( 'manage_options' ),
+				'callback'            => static fn() => array(
+					'runs_left' => (int) get_option( 'daw_prof_runs', 0 ),
+					'last'      => (array) get_option( 'daw_prof_last', array() ),
+				),
+			),
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => static fn() => current_user_can( 'manage_options' ),
+				'callback'            => static function ( WP_REST_Request $r ) {
+					$n = max( 0, min( 20, (int) $r->get_param( 'runs' ) ) );
+					update_option( 'daw_prof_runs', $n, false );
+					if ( $r->get_param( 'clear' ) ) {
+						delete_option( 'daw_prof_last' );
+					}
+					return array( 'runs_left' => $n );
+				},
+			),
+		)
+	);
+}
