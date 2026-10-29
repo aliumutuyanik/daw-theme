@@ -3,7 +3,7 @@
  * The airing calendar.
  *
  * One page, two ways in. The list answers what most readers came for (on air
- * now, coming up, just finished) in one request. The month view reaches every
+ * now, TV guide for the week, upcoming) in one request. The month view reaches every
  * other date. Both are drawn from the same index of premieres and finales.
  *
  * @package daw
@@ -54,6 +54,9 @@ $event_row = static function ( $e ) use ( $req, $base ) {
 	if ( $is_ep ) {
 		/* translators: %s: episode number, or a range such as 3-4 */
 		$kind_label = '' !== (string) ( $e['no'] ?? '' ) ? sprintf( __( 'Episode %s', 'daw' ), $e['no'] ) : __( 'New episode', 'daw' );
+	} elseif ( $prem && ! empty( $e['all'] ) ) {
+		/* translators: %s: number of episodes */
+		$kind_label = sprintf( __( 'All %s episodes', 'daw' ), number_format_i18n( (int) $e['all'] ) );
 	} elseif ( $prem ) {
 		$kind_label = 'film' === $e['type'] ? __( 'Release', 'daw' ) : __( 'Premiere', 'daw' );
 	} else {
@@ -66,6 +69,13 @@ $event_row = static function ( $e ) use ( $req, $base ) {
 			<span class="daw-cal2-kind <?php echo $is_ep ? 'ep' : ( $prem ? 'prem' : 'fin' ); ?>"><?php echo esc_html( $kind_label ); ?></span>
 			<a class="n" href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php echo esc_html( get_the_title( $id ) ); ?></a>
 			<span class="m"><?php echo esc_html( implode( ' · ', $facts ) ); ?></span>
+			<?php
+			// When it airs, next to the date (owner: "bilinen tarihleri varsa yanına").
+			$row_days = 'fin' !== $e['kind'] && 'film' !== $e['type'] ? trim( (string) daw_field_raw( $id, 'daw_airing_days' ) ) : '';
+			if ( '' !== $row_days ) :
+				?>
+				<span class="m daw-cal2-airs"><?php echo esc_html( $row_days ); ?></span>
+			<?php endif; ?>
 		</span>
 		<?php if ( $coming ) : ?>
 			<a class="daw-cal2-add" href="<?php echo esc_url( add_query_arg( 'daw_ics', $id, $base ) ); ?>" rel="nofollow"><?php esc_html_e( '+ Add to calendar', 'daw' ); ?></a>
@@ -95,7 +105,6 @@ $days = static function ( $events, $anchor = false ) use ( $event_row ) {
 
 $n_now  = count( $data['onair'] );
 $n_next = count( $data['next'] ) + count( $data['tbc'] );
-$n_done = count( $data['done'] );
 ?>
 
 <div class="daw-wrap">
@@ -110,7 +119,7 @@ $n_done = count( $data['done'] );
 		<div class="daw-hubhero">
 			<h1><?php esc_html_e( 'Airing calendar', 'daw' ); ?></h1>
 			<p class="daw-phero-sum">
-				<?php esc_html_e( 'What is running now, what starts next and what has just finished, dated from the records themselves. Every date here is one somebody sourced. Any other month is one click away.', 'daw' ); ?>
+				<?php esc_html_e( 'Your K-drama TV guide: what is on air now, which episode airs on which day this week, and what premieres next. Every date comes from the episode lists on our pages, and any other month is one click away.', 'daw' ); ?>
 			</p>
 		</div>
 	</div>
@@ -123,10 +132,9 @@ $n_done = count( $data['done'] );
 			<ul class="daw-cal2-jump">
 				<li><a class="daw-cal2-chip" href="#now"><?php esc_html_e( 'Airing now', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_now ) ); ?></b></a></li>
 				<?php if ( $data['week'] ) : ?>
-					<li><a class="daw-cal2-chip" href="#week"><?php esc_html_e( 'This week', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( count( $data['week'] ) ) ); ?></b></a></li>
+					<li><a class="daw-cal2-chip" href="#week"><?php esc_html_e( 'TV guide', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( count( $data['week'] ) ) ); ?></b></a></li>
 				<?php endif; ?>
 				<li><a class="daw-cal2-chip" href="#next"><?php esc_html_e( 'Upcoming', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_next ) ); ?></b></a></li>
-				<li><a class="daw-cal2-chip" href="#done"><?php esc_html_e( 'Just finished', 'daw' ); ?> <b><?php echo esc_html( number_format_i18n( $n_done ) ); ?></b></a></li>
 			</ul>
 		<?php else : ?>
 			<form class="daw-cal2-pick" method="get" action="<?php echo esc_url( $base ); ?>">
@@ -239,7 +247,7 @@ $n_done = count( $data['done'] );
 
 		<?php if ( $data['week'] ) : ?>
 			<section class="daw-cal2-sec" id="week">
-				<h2 class="daw-cal2-h"><?php esc_html_e( 'This week', 'daw' ); ?> <small><?php esc_html_e( 'every dated episode, premiere and finale for the next seven days', 'daw' ); ?></small></h2>
+				<h2 class="daw-cal2-h"><?php esc_html_e( 'TV guide: this week', 'daw' ); ?> <small><?php esc_html_e( 'every dated episode and premiere for the next seven days, day by day', 'daw' ); ?></small></h2>
 				<?php $days( $data['week'] ); ?>
 			</section>
 		<?php endif; ?>
@@ -265,15 +273,8 @@ $n_done = count( $data['done'] );
 			<?php endif; ?>
 		</section>
 
-		<section class="daw-cal2-sec" id="done">
-			<h2 class="daw-cal2-h"><?php esc_html_e( 'Just finished', 'daw' ); ?> <small><?php esc_html_e( 'ended in the last six months', 'daw' ); ?></small></h2>
-			<?php if ( ! $data['done'] ) : ?>
-				<p class="daw-empty"><?php esc_html_e( 'Nothing has finished in the last six months according to the dates on file.', 'daw' ); ?></p>
-			<?php else : ?>
-				<?php $days( $data['done'] ); ?>
-			<?php endif; ?>
-			<p class="daw-cal2-more"><a href="<?php echo esc_url( $link( array( 'view' => 'month', 'ym' => daw_calendar_shift_month( wp_date( 'Y-m' ), -7 ) ) ) ); ?>"><?php esc_html_e( 'Earlier dates: browse by month', 'daw' ); ?> →</a></p>
-		</section>
+		<?php // Finished runs are not listed (owner, 29 Oct 2026); past months still show their finales. ?>
+		<p class="daw-cal2-more"><a href="<?php echo esc_url( $link( array( 'view' => 'month', 'ym' => daw_calendar_shift_month( wp_date( 'Y-m' ), -1 ) ) ) ); ?>"><?php esc_html_e( 'Earlier dates: browse by month', 'daw' ); ?> →</a></p>
 
 	<?php else : ?>
 
@@ -340,7 +341,7 @@ $n_done = count( $data['done'] );
 										$pl = '' !== (string) ( $e['no'] ?? '' ) ? sprintf( __( 'Ep %s', 'daw' ), $e['no'] ) : __( 'New ep', 'daw' );
 									} else {
 										$pk = 'prem' === $e['kind'] ? 'prem' : 'fin';
-										$pl = 'prem' === $e['kind'] ? ( 'film' === $e['type'] ? __( 'Release', 'daw' ) : __( 'Premiere', 'daw' ) ) : __( 'Finale', 'daw' );
+										$pl = 'prem' === $e['kind'] ? ( ! empty( $e['all'] ) ? sprintf( /* translators: %s: number of episodes */ __( 'All %s episodes', 'daw' ), number_format_i18n( (int) $e['all'] ) ) : ( 'film' === $e['type'] ? __( 'Release', 'daw' ) : __( 'Premiere', 'daw' ) ) ) : __( 'Finale', 'daw' );
 									}
 									?>
 									<a class="daw-cal2-pill <?php echo esc_attr( $pk ); ?>" href="<?php echo esc_url( get_permalink( $e['id'] ) ); ?>" title="<?php echo esc_attr( $pl . ': ' . get_the_title( $e['id'] ) ); ?>"><span><?php echo esc_html( get_the_title( $e['id'] ) ); ?></span><?php if ( 'ep' === $pk ) : ?><em><?php echo esc_html( $pl ); ?></em><?php endif; ?></a>
@@ -348,7 +349,7 @@ $n_done = count( $data['done'] );
 								endforeach;
 								if ( $cell_more ) :
 									?>
-									<a class="daw-cal2-more" href="#d-<?php echo esc_attr( $key ); ?>">
+									<a class="daw-cal2-plus" href="#d-<?php echo esc_attr( $key ); ?>">
 										<?php
 										/* translators: %s: number of further events that day */
 										echo esc_html( sprintf( __( '+%s more', 'daw' ), number_format_i18n( $cell_more ) ) );
@@ -361,7 +362,7 @@ $n_done = count( $data['done'] );
 						</div>
 					<?php endfor; ?>
 				</div>
-				<p class="daw-cal2-legend"><span><i class="prem"></i><?php esc_html_e( 'Premiere', 'daw' ); ?></span><span><i class="ep"></i><?php esc_html_e( 'Episode', 'daw' ); ?></span><span><i class="fin"></i><?php esc_html_e( 'Finale', 'daw' ); ?></span></p>
+				<p class="daw-cal2-legend"><span><i class="prem"></i><?php esc_html_e( 'Premiere', 'daw' ); ?></span><span><i class="ep"></i><?php esc_html_e( 'Episode', 'daw' ); ?></span><?php if ( $month < substr( $req['today'], 0, 7 ) ) : ?><span><i class="fin"></i><?php esc_html_e( 'Finale', 'daw' ); ?></span><?php endif; ?></p>
 			</div>
 
 			<div class="daw-cal2-monthlist">

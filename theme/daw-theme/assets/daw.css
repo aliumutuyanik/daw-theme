@@ -8088,6 +8088,7 @@ a.daw-wp-row:hover .daw-watch-go { color: var(--accent); }
 .daw-cal2-kind.prem { background: #f4e3e4; color: var(--accent-fill); }
 .daw-cal2-kind.fin { background: var(--band); color: var(--muted); }
 .daw-cal2-kind.ep { background: #e3f1e7; color: #1f6b3a; }
+.daw-cal2-airs { color: var(--ink); }
 .daw-cal2-add { font-size: .8rem; color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: var(--r-s); padding: 6px 10px; background: var(--surface); white-space: nowrap; }
 .daw-cal2-add:hover { border-color: var(--accent); }
 .daw-cal2-more { margin: 14px 0 0; font-size: .92rem; }
@@ -8110,7 +8111,7 @@ a.daw-wp-row:hover .daw-watch-go { color: var(--accent); }
 .daw-cal2-pill em { display: block; font-style: normal; font-weight: 700; font-size: .68rem; color: #1f6b3a; }
 .daw-cal2-pill span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daw-cal2-pill:hover { outline: 1px solid var(--accent); }
-.daw-cal2-more { display: block; margin-top: 4px; font-size: .72rem; font-weight: 700; color: var(--accent); text-decoration: none; }
+.daw-cal2-plus { display: block; margin-top: 4px; font-size: .72rem; font-weight: 700; color: var(--accent); text-decoration: none; }
 .daw-cal2-legend { display: flex; gap: 14px; margin: 10px 0 0; font-size: .8rem; color: var(--muted); }
 .daw-cal2-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; border: 1px solid var(--line); }
 .daw-cal2-legend i.prem { background: #f4e3e4; border-color: var(--accent-fill); }

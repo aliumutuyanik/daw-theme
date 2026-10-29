@@ -15,7 +15,7 @@
  * TWO WAYS IN
  * -----------
  * The page opens as a list: what is on air now, what is coming (every dated
- * premiere, soonest first) and what has just finished. The month view reaches
+ * premiere, soonest first) and this week's TV guide. The month view reaches
  * every other date: any month from the first dated record to the last, one
  * click from the previous and the next, or straight to a month and year.
  * The list is the default because it is the answer most readers came for and
@@ -124,7 +124,7 @@ function daw_calendar_relative( $ts ) {
  */
 function daw_calendar_index() {
 	$gen = function_exists( 'daw_browse_gen' ) ? daw_browse_gen() : 1;
-	$key = 'daw_cal3_' . md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) );
+	$key = 'daw_cal4_' . md5( wp_json_encode( array( $gen, DAW_VERSION, gmdate( 'Y-m-d' ) ) ) );
 
 	$cached = get_transient( $key );
 
@@ -167,7 +167,22 @@ function daw_calendar_index() {
 		$end      = (int) get_post_meta( $id, 'daw_aired_end', true );
 
 		if ( $start ) {
-			$events[] = array( 'id' => (int) $id, 'when' => $start, 'kind' => 'prem', 'type' => $type );
+			// A whole season released at once (Netflix, Disney+) is one event:
+			// "All 8 episodes" on the premiere, nothing after it (owner, 29 Oct
+			// 2026: "tümü yayınlanıyorsa tek seferde ver").
+			$prem    = array( 'id' => (int) $id, 'when' => $start, 'kind' => 'prem', 'type' => $type );
+			$ep_all  = 'film' !== $type ? get_post_meta( $id, 'daw_ep_date', true ) : array();
+			if ( is_array( $ep_all ) && count( $ep_all ) > 1 ) {
+				$day0 = gmdate( 'Y-m-d', $start );
+				$same = 0;
+				foreach ( $ep_all as $d ) {
+					$same += substr( trim( (string) $d ), 0, 10 ) === $day0 ? 1 : 0;
+				}
+				if ( $same === count( $ep_all ) ) {
+					$prem['all'] = $same;
+				}
+			}
+			$events[] = $prem;
 		}
 
 		// A one-day run is one event, not a premiere and a finale on top of each other.
@@ -181,13 +196,15 @@ function daw_calendar_index() {
 		// record's own episode list becomes an event, for titles that started
 		// in the last 400 days or have yet to: the month grid fills with
 		// "Ep 7" pills and the list view gets a this-week schedule. A row on
-		// the premiere or finale day is already that event, so it is skipped.
+		// the premiere day is already that event, so it is skipped; the finale
+		// day keeps its episode row, because the calendar shows finales only
+		// in past months (owner: "finalleri göstermeye gerek yok").
 		if ( 'film' !== $type && ( ! $start || $start > $now - 400 * DAY_IN_SECONDS ) ) {
 			$ep_dates = get_post_meta( $id, 'daw_ep_date', true );
 			if ( is_array( $ep_dates ) ) {
 				$ep_nos = get_post_meta( $id, 'daw_ep_no', true );
 				$ep_nos = is_array( $ep_nos ) ? array_values( $ep_nos ) : array();
-				$skip   = array( $start ? gmdate( 'Y-m-d', $start ) : '', $end ? gmdate( 'Y-m-d', $end ) : '' );
+				$skip   = array( $start ? gmdate( 'Y-m-d', $start ) : '' );
 				$seen   = array();
 				foreach ( array_values( $ep_dates ) as $i => $d ) {
 					$d = substr( trim( (string) $d ), 0, 10 );
@@ -306,6 +323,12 @@ function daw_calendar_data( $req ) {
 	$month  = array();
 	$week   = array();
 	$wend   = gmdate( 'Y-m-d', strtotime( $today . ' UTC' ) + 6 * DAY_IN_SECONDS );
+	$fin_day = array();
+	foreach ( $ev as $e ) {
+		if ( 'fin' === $e['kind'] ) {
+			$fin_day[ $e['id'] . '|' . gmdate( 'Y-m-d', $e['when'] ) ] = true;
+		}
+	}
 
 	foreach ( $ev as $e ) {
 		$d = gmdate( 'Y-m-d', $e['when'] );
@@ -316,12 +339,18 @@ function daw_calendar_data( $req ) {
 			$done[] = $e;
 		}
 
+		// A finale shows only in a month already over; in this month and the
+		// months ahead the last episode is an episode like the others. In a
+		// past month the finale stands in for that day's episode row.
 		if ( substr( $d, 0, 7 ) === $req['month'] ) {
-			$month[] = $e;
+			$past = $req['month'] < substr( $today, 0, 7 );
+			if ( 'fin' === $e['kind'] ? $past : ! ( $past && 'ep' === $e['kind'] && isset( $fin_day[ $e['id'] . '|' . $d ] ) ) ) {
+				$month[] = $e;
+			}
 		}
 
-		// This week: every episode, premiere and finale from today to six days on.
-		if ( $d >= $today && $d <= $wend ) {
+		// TV guide: every episode and premiere from today to six days on.
+		if ( 'fin' !== $e['kind'] && $d >= $today && $d <= $wend ) {
 			$week[] = $e;
 		}
 	}
@@ -438,7 +467,7 @@ function daw_calendar_old_tabs() {
 		return;
 	}
 
-	$anchor = array( 'on' => 'now', 'next' => 'next', 'done' => 'done' );
+	$anchor = array( 'on' => 'now', 'next' => 'next' );
 	$tab    = sanitize_key( wp_unslash( $_GET['tab'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	$to     = (string) get_permalink( get_queried_object_id() ) . '#' . ( $anchor[ $tab ] ?? 'now' );
 
