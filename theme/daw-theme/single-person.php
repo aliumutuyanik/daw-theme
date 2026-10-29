@@ -941,7 +941,15 @@ while ( have_posts() ) :
 				if ( '' !== $blgl && filter_var( $blgl, FILTER_VALIDATE_URL ) ) :
 					?>
 					<aside class="daw-handoff" style="margin-top:16px">
-						<p class="daw-handoff-l"><?php echo daw_watch_mark( $blgl, 'BLGLFlix', 20 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'On our sister site', 'daw' ); ?></p>
+						<?php
+						// The sister site's own logo, at its own shape (a wide wordmark
+						// does not read in a square tile), linked to the same page.
+						$blgl_logo = function_exists( 'daw_platform_icon_url' ) ? daw_platform_icon_url( $blgl ) : '';
+						if ( '' !== $blgl_logo ) :
+							?>
+							<a class="daw-handoff-logo" href="<?php echo esc_url( $blgl ); ?>"><img src="<?php echo esc_url( $blgl_logo ); ?>" alt="BLGLFlix" width="140" height="70" loading="lazy" decoding="async"></a>
+						<?php endif; ?>
+						<p class="daw-handoff-l"><?php esc_html_e( 'On our sister site', 'daw' ); ?></p>
 						<p class="daw-handoff-b">
 							<?php
 							printf(
