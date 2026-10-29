@@ -336,6 +336,13 @@ while ( have_posts() ) :
 			</div>
 
 			<div class="daw-hero-meta">
+				<?php
+				// The facts line and the genre chips are one block: on a phone
+				// it moves up beside the poster, into the space a short title
+				// leaves under itself (owner, 29 Oct 2026: "alt tarafta boşluk
+				// var gibi").
+				?>
+				<div class="daw-hero-sub">
 				<p class="daw-facts">
 					<?php
 					// A SHRUG IS NOT A FACT
@@ -375,6 +382,7 @@ while ( have_posts() ) :
 						</div>
 				</div>
 				<?php endif; ?>
+				</div>
 
 				<div class="daw-stats">
 					<?php
