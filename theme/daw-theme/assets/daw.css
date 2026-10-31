@@ -8311,12 +8311,19 @@ footer.daw-footer {
  * one row, swiped on a phone, stepped with two round buttons on a desktop.
  * The buttons are absolutely placed over the rail's ends and start hidden,
  * so showing them moves nothing (rule 7.1). Today's episode is a badge in
- * the poster's free top-left corner (score sits top-right, year bottom-left).
+ * the poster's bottom-left corner, in place of the year: top-left it ran
+ * into the score on narrow cards ("EP 24 TODAY" under "★ 10.0", owner
+ * 31 Oct 2026). The score keeps the top-right corner.
  */
 .daw-hubbadge {
 	position: absolute;
-	top: 8px;
+	bottom: 8px;
 	left: 8px;
+	max-width: calc(100% - 16px);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
 	font-size: .66rem;
 	font-weight: 700;
 	line-height: 1;

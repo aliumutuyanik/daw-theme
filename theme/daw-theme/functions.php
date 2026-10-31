@@ -1255,7 +1255,7 @@ function daw_hub_title_card( $post_id, $meta = 'network', $badge = '' ) {
 			<?php if ( $score ) : ?>
 				<span class="daw-hubscore">★ <?php echo esc_html( number_format_i18n( $score, 1 ) ); ?></span>
 			<?php endif; ?>
-			<?php if ( $year ) : ?>
+			<?php if ( $year && '' === $badge ) : // The badge takes the year's corner: on the on-air and upcoming rails the year says nothing new. ?>
 				<span class="daw-hubyear"><?php echo esc_html( $year ); ?></span>
 			<?php endif; ?>
 			<?php if ( '' !== $badge ) : // "Ep 3 today" on the home page's on-air rail (1.75.79). ?>
